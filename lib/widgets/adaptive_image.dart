@@ -67,7 +67,7 @@ class AdaptiveImage extends StatelessWidget {
               value: progress.expectedTotalBytes != null
                   ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes!
                   : null,
-              color: const Color(0xFFFF6B6B),
+              color: const Color(0xFFF5A623),
             ),
           );
         },

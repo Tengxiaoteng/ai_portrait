@@ -41,21 +41,21 @@ class StyleCategory {
     groupPhoto,
   ];
 
-  /// Returns the gradient colors for each category.
+  /// Returns the gradient colors for each category (grey-tone gradients).
   static List<Color> gradientColors(String category) {
     switch (category) {
       case artPainting:
-        return const [Color(0xFF8D6E63), Color(0xFFD7CCC8)];
+        return const [Color(0xFF2A2A2A), Color(0xFF1A1A1A)];
       case animeCartoon:
-        return const [Color(0xFFCE93D8), Color(0xFFF8BBD0)];
+        return const [Color(0xFF2D2525), Color(0xFF1A1A1A)];
       case photography:
-        return const [Color(0xFF64B5F6), Color(0xFFBBDEFB)];
+        return const [Color(0xFF252A2D), Color(0xFF1A1A1A)];
       case sceneTheme:
-        return const [Color(0xFF81C784), Color(0xFFC8E6C9)];
+        return const [Color(0xFF252D25), Color(0xFF1A1A1A)];
       case groupPhoto:
-        return const [Color(0xFFFFB74D), Color(0xFFFFE0B2)];
+        return const [Color(0xFF2D2A25), Color(0xFF1A1A1A)];
       default:
-        return const [Color(0xFF90A4AE), Color(0xFFCFD8DC)];
+        return const [Color(0xFF2A2A2A), Color(0xFF1A1A1A)];
     }
   }
 }

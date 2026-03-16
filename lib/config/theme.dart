@@ -2,28 +2,29 @@ import 'package:flutter/material.dart';
 
 /// AI Portrait app unified theme configuration.
 /// Dark, premium aesthetic optimized for tablet landscape mode.
+/// Color scheme: black / white / gold-orange / grey.
 class AppTheme {
   AppTheme._();
 
   // ── Core palette ──────────────────────────────────────────────────────
-  static const Color background = Color(0xFF0A0E21);
-  static const Color primary = Color(0xFF1E3C72);
-  static const Color accent = Color(0xFFFF6B6B);
-  static const Color card = Color(0xFF1A1F3D);
-  static const Color surface = Color(0xFF141830);
+  static const Color background = Color(0xFF0D0D0D);
+  static const Color primary = Color(0xFFF5A623);
+  static const Color accent = Color(0xFFFF8C42);
+  static const Color card = Color(0xFF1A1A1A);
+  static const Color surface = Color(0xFF222222);
   static const Color textPrimary = Color(0xFFFFFFFF);
-  static const Color textSecondary = Color(0xFF8D8E98);
-  static const Color divider = Color(0xFF2A2F4F);
+  static const Color textSecondary = Color(0xFF888888);
+  static const Color divider = Color(0xFF333333);
 
   // ── Gradients ─────────────────────────────────────────────────────────
   static const LinearGradient primaryGradient = LinearGradient(
-    colors: [Color(0xFF1E3C72), Color(0xFF6C63FF)],
+    colors: [Color(0xFFF5A623), Color(0xFFFF8C42)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   static const LinearGradient accentGradient = LinearGradient(
-    colors: [Color(0xFFFF6B6B), Color(0xFFFF8E53)],
+    colors: [Color(0xFFFF8C42), Color(0xFFCC7A3C)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
@@ -115,7 +116,7 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: accent,
+          backgroundColor: primary,
           foregroundColor: textPrimary,
           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
           shape: RoundedRectangleBorder(
@@ -127,7 +128,7 @@ class AppTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: accent,
+          foregroundColor: primary,
           textStyle: labelLarge,
         ),
       ),

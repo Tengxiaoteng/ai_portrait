@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../widgets/adaptive_image.dart';
+import 'style_picker_screen.dart';
 
 /// Full-screen camera page optimised for tablet landscape.
 /// Provides capture, camera-switch, and gallery-pick actions.
@@ -157,11 +158,10 @@ class _CameraScreenState extends State<CameraScreen>
   }
 
   void _navigateToStylePicker(String imagePath) {
-    // TODO: Replace with actual StylePickerScreen navigation.
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => _StylePickerPlaceholder(imagePath: imagePath),
+        builder: (_) => StylePickerScreen(imagePaths: [imagePath]),
       ),
     );
   }
@@ -374,46 +374,6 @@ class _ToolbarButtonState extends State<_ToolbarButton>
                 color: Colors.white.withValues(alpha: 0.8),
                 fontSize: 12,
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Temporary placeholder for StylePickerScreen.
-class _StylePickerPlaceholder extends StatelessWidget {
-  final String imagePath;
-
-  const _StylePickerPlaceholder({required this.imagePath});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF1E3C72),
-      appBar: AppBar(
-        title: const Text('\u9009\u62e9\u98ce\u683c'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: AdaptiveImage(
-                path: imagePath,
-                width: 300,
-                height: 300,
-                fit: BoxFit.cover,
-              ),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              '\u98ce\u683c\u9009\u62e9\u9875\u9762\uff08\u5f85\u5b9e\u73b0\uff09',
-              style: TextStyle(color: Colors.white70, fontSize: 18),
             ),
           ],
         ),

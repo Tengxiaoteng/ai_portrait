@@ -1,9 +1,11 @@
 import 'dart:ui';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'camera_screen.dart';
+import 'style_picker_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -43,10 +45,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _openCamera() {
+    // Web 环境跳过相机，直接进入风格选择页（用 mock 路径测试）
+    final Widget target = kIsWeb
+        ? const StylePickerScreen(imagePaths: ['mock_photo.jpg'])
+        : const CameraScreen();
+
     Navigator.push(
       context,
       PageRouteBuilder(
-        pageBuilder: (_, __, ___) => const CameraScreen(),
+        pageBuilder: (_, __, ___) => target,
         transitionDuration: const Duration(milliseconds: 500),
         transitionsBuilder: (_, animation, __, child) {
           return FadeTransition(
@@ -86,9 +93,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFF0A0E21),
-            Color(0xFF141B3D),
-            Color(0xFF0D1232),
+            Color(0xFF0D0D0D),
+            Color(0xFF1A1A1A),
+            Color(0xFF111111),
           ],
           stops: [0.0, 0.5, 1.0],
         ),
@@ -98,7 +105,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   List<Widget> _buildFloatingOrbs() {
     return [
-      // 左上蓝色光球
+      // 左上金色光球
       AnimatedBuilder(
         animation: _floatController,
         builder: (_, __) {
@@ -113,8 +120,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    const Color(0xFF1E3C72).withOpacity(0.4),
-                    const Color(0xFF1E3C72).withOpacity(0.0),
+                    const Color(0xFFF5A623).withOpacity(0.4),
+                    const Color(0xFFF5A623).withOpacity(0.0),
                   ],
                 ),
               ),
@@ -122,7 +129,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           );
         },
       ),
-      // 右下紫色光球
+      // 右下橘色光球
       AnimatedBuilder(
         animation: _floatController,
         builder: (_, __) {
@@ -137,8 +144,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    const Color(0xFF6C63FF).withOpacity(0.3),
-                    const Color(0xFF6C63FF).withOpacity(0.0),
+                    const Color(0xFFFF8C42).withOpacity(0.3),
+                    const Color(0xFFFF8C42).withOpacity(0.0),
                   ],
                 ),
               ),
@@ -146,7 +153,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           );
         },
       ),
-      // 中间粉色光球
+      // 中间暖黄光球
       AnimatedBuilder(
         animation: _breathController,
         builder: (_, __) {
@@ -162,8 +169,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     colors: [
-                      const Color(0xFFFF6B6B).withOpacity(0.5),
-                      const Color(0xFFFF6B6B).withOpacity(0.0),
+                      const Color(0xFFFFD93D).withOpacity(0.5),
+                      const Color(0xFFFFD93D).withOpacity(0.0),
                     ],
                   ),
                 ),
@@ -217,11 +224,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
                   gradient: const LinearGradient(
-                    colors: [Color(0xFFFF6B6B), Color(0xFFFF8E53)],
+                    colors: [Color(0xFFF5A623), Color(0xFFFF8C42)],
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFFF6B6B).withOpacity(0.3),
+                      color: const Color(0xFFF5A623).withOpacity(0.3),
                       blurRadius: 20,
                       spreadRadius: 2,
                     ),
@@ -247,7 +254,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         const SizedBox(height: 8),
         ShaderMask(
           shaderCallback: (bounds) => const LinearGradient(
-            colors: [Color(0xFFFF6B6B), Color(0xFF6C63FF)],
+            colors: [Color(0xFFF5A623), Color(0xFFFFD93D)],
           ).createShader(bounds),
           child: const Text(
             'PORTRAIT STUDIO',
@@ -289,7 +296,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       children: [
         ShaderMask(
           shaderCallback: (bounds) => const LinearGradient(
-            colors: [Color(0xFFFF6B6B), Color(0xFFFF8E53)],
+            colors: [Color(0xFFF5A623), Color(0xFFFF8C42)],
           ).createShader(bounds),
           child: Text(
             value,
@@ -352,7 +359,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFFF6B6B).withOpacity(0.08),
+                    color: const Color(0xFFF5A623).withOpacity(0.08),
                     blurRadius: 40,
                     spreadRadius: 0,
                   ),
@@ -369,11 +376,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       gradient: const LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [Color(0xFFFF6B6B), Color(0xFFFF8E53)],
+                        colors: [Color(0xFFF5A623), Color(0xFFFF8C42)],
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFFFF6B6B).withOpacity(0.4),
+                          color: const Color(0xFFF5A623).withOpacity(0.4),
                           blurRadius: 24,
                           spreadRadius: 0,
                         ),
@@ -414,12 +421,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildStylePreviewRow() {
     final styles = [
-      ('油画', const Color(0xFFE8A87C), Icons.brush),
-      ('动漫', const Color(0xFFCE93D8), Icons.animation),
-      ('赛博', const Color(0xFF64B5F6), Icons.memory),
-      ('汉服', const Color(0xFF81C784), Icons.checkroom),
-      ('商务', const Color(0xFF90A4AE), Icons.business_center),
-      ('水彩', const Color(0xFF80DEEA), Icons.water_drop),
+      ('油画', const Color(0xFFF5A623), Icons.brush),
+      ('动漫', const Color(0xFFFF8C42), Icons.animation),
+      ('赛博', const Color(0xFFFFD93D), Icons.memory),
+      ('汉服', const Color(0xFFE6A04E), Icons.checkroom),
+      ('商务', const Color(0xFF999999), Icons.business_center),
+      ('水彩', const Color(0xFFFFBB5C), Icons.water_drop),
     ];
 
     return ClipRRect(

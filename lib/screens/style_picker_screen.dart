@@ -1,7 +1,5 @@
 // ignore_for_file: unnecessary_underscores
 
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
 import '../models/style_data.dart';
@@ -24,14 +22,18 @@ class StylePickerScreen extends StatefulWidget {
 class _StylePickerScreenState extends State<StylePickerScreen>
     with SingleTickerProviderStateMixin {
   // -- Constants ----------------------------------------------------------
-  static const _bgColor = Color(0xFF0A0E21);
-  static const _primaryColor = Color(0xFF1E3C72);
-  static const _accentColor = Color(0xFFFF6B6B);
+  static const _bgColor = Color(0xFF0D0D0D);
+  static const _cardColor = Color(0xFF1A1A1A);
+  static const _accentColor = Color(0xFFF5A623);
+  static const _accentEndColor = Color(0xFFFF8C42);
   static const _cardRadius = 16.0;
+  static const _maxSelections = 10;
+  static const _textSecondary = Color(0xFF888888);
+  static const _borderColor = Color(0xFF333333);
 
   // -- State --------------------------------------------------------------
   late final TabController _tabController;
-  StyleModel? _selectedStyle;
+  final Set<StyleModel> _selectedStyles = {};
   String _currentCategory = StyleCategory.all;
 
   @override
@@ -61,6 +63,16 @@ class _StylePickerScreenState extends State<StylePickerScreen>
   List<StyleModel> get _filteredStyles =>
       StyleData.byCategory(_currentCategory);
 
+  /// Returns the 1-based selection order index for the given style,
+  /// or -1 if not selected.
+  int _selectionIndex(StyleModel style) {
+    final list = _selectedStyles.toList();
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].name == style.name) return i + 1;
+    }
+    return -1;
+  }
+
   // -- Build --------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
@@ -75,14 +87,14 @@ class _StylePickerScreenState extends State<StylePickerScreen>
             Expanded(
               child: Row(
                 children: [
-                  // Left panel – photo preview
+                  // Left panel -- photo preview
                   SizedBox(
                     width: MediaQuery.of(context).size.width * 0.30,
                     child: _buildLeftPanel(),
                   ),
                   // Divider
                   Container(width: 1, color: Colors.white12),
-                  // Right panel – style selection
+                  // Right panel -- style selection
                   Expanded(child: _buildRightPanel()),
                 ],
               ),
@@ -230,15 +242,15 @@ class _StylePickerScreenState extends State<StylePickerScreen>
           childAspectRatio: 1.15,
         ),
         itemCount: styles.length,
-        itemBuilder: (context, index) =>
-            _buildStyleCard(styles[index]),
+        itemBuilder: (context, index) => _buildStyleCard(styles[index]),
       ),
     );
   }
 
   // -- Style card ---------------------------------------------------------
   Widget _buildStyleCard(StyleModel style) {
-    final isSelected = _selectedStyle?.name == style.name;
+    final selIndex = _selectionIndex(style);
+    final isSelected = selIndex > 0;
     final gradientColors = StyleCategory.gradientColors(style.category);
 
     // Check people count mismatch for group category
@@ -256,8 +268,8 @@ class _StylePickerScreenState extends State<StylePickerScreen>
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(_cardRadius),
             border: Border.all(
-              color: isSelected ? _accentColor : Colors.transparent,
-              width: 2.5,
+              color: isSelected ? _accentColor : _borderColor,
+              width: isSelected ? 2.5 : 1.0,
             ),
             boxShadow: [
               BoxShadow(
@@ -270,8 +282,8 @@ class _StylePickerScreenState extends State<StylePickerScreen>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                gradientColors[0].withValues(alpha: 0.85),
-                gradientColors[1].withValues(alpha: 0.65),
+                gradientColors[0],
+                gradientColors[1],
               ],
             ),
           ),
@@ -295,8 +307,8 @@ class _StylePickerScreenState extends State<StylePickerScreen>
                     const SizedBox(height: 4),
                     Text(
                       style.description,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.8),
+                      style: const TextStyle(
+                        color: _textSecondary,
                         fontSize: 12,
                       ),
                       maxLines: 2,
@@ -307,7 +319,7 @@ class _StylePickerScreenState extends State<StylePickerScreen>
                   ],
                 ),
               ),
-              // Selected check
+              // Selected order badge
               if (isSelected)
                 Positioned(
                   top: 10,
@@ -316,13 +328,21 @@ class _StylePickerScreenState extends State<StylePickerScreen>
                     width: 28,
                     height: 28,
                     decoration: const BoxDecoration(
-                      color: _accentColor,
                       shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: [_accentColor, _accentEndColor],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
                     ),
-                    child: const Icon(
-                      Icons.check,
-                      color: Colors.white,
-                      size: 18,
+                    alignment: Alignment.center,
+                    child: Text(
+                      '$selIndex',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
@@ -337,7 +357,7 @@ class _StylePickerScreenState extends State<StylePickerScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: Colors.black26,
+        color: const Color(0xFF333333),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
@@ -363,41 +383,53 @@ class _StylePickerScreenState extends State<StylePickerScreen>
     }
 
     setState(() {
-      _selectedStyle = (_selectedStyle?.name == style.name) ? null : style;
+      // Check if already selected (by name equality)
+      final existing = _selectedStyles
+          .cast<StyleModel?>()
+          .firstWhere((s) => s!.name == style.name, orElse: () => null);
+
+      if (existing != null) {
+        // Deselect
+        _selectedStyles.remove(existing);
+      } else if (_selectedStyles.length >= _maxSelections) {
+        // Show limit snackbar
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('最多选择10种风格'),
+            backgroundColor: _accentColor,
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      } else {
+        // Select
+        _selectedStyles.add(style);
+      }
     });
   }
 
   // -- Bottom bar ---------------------------------------------------------
   Widget _buildBottomBar() {
-    final hasSelection = _selectedStyle != null;
+    final count = _selectedStyles.length;
+    final hasSelection = count > 0;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: _bgColor,
-        border: const Border(top: BorderSide(color: Colors.white12)),
+        border: Border(top: BorderSide(color: Colors.white12)),
       ),
       child: Row(
         children: [
-          // Selected style label
+          // Selected styles count
           Expanded(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: hasSelection
-                  ? Text(
-                      '已选风格：${_selectedStyle!.name}',
-                      key: ValueKey(_selectedStyle!.name),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    )
-                  : const Text(
-                      '请选择一个风格',
-                      key: ValueKey('empty'),
-                      style: TextStyle(color: Colors.white38, fontSize: 16),
-                    ),
+            child: Text(
+              '已选 $count/$_maxSelections 种风格',
+              style: TextStyle(
+                color: hasSelection ? Colors.white : _textSecondary,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
           // Generate button
@@ -408,6 +440,8 @@ class _StylePickerScreenState extends State<StylePickerScreen>
   }
 
   Widget _buildGenerateButton(bool enabled) {
+    final count = _selectedStyles.length;
+
     return GestureDetector(
       onTap: enabled ? _onGenerate : null,
       child: AnimatedOpacity(
@@ -418,7 +452,7 @@ class _StylePickerScreenState extends State<StylePickerScreen>
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(28),
             gradient: const LinearGradient(
-              colors: [_primaryColor, _accentColor],
+              colors: [_accentColor, _accentEndColor],
             ),
             boxShadow: enabled
                 ? [
@@ -430,19 +464,17 @@ class _StylePickerScreenState extends State<StylePickerScreen>
                   ]
                 : null,
           ),
-          child: const Row(
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                '开始生成',
-                style: TextStyle(
+                '生成 $count 张照片 \u2192',
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 17,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              SizedBox(width: 8),
-              Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 20),
             ],
           ),
         ),
@@ -451,15 +483,14 @@ class _StylePickerScreenState extends State<StylePickerScreen>
   }
 
   void _onGenerate() {
-    if (_selectedStyle == null) return;
+    if (_selectedStyles.isEmpty) return;
 
-    // Navigate to ProcessingScreen (to be implemented).
-    // For now, push a named route or placeholder.
+    // Navigate to ProcessingScreen.
     Navigator.of(context).pushNamed(
       '/processing',
       arguments: {
         'imagePaths': widget.imagePaths,
-        'style': _selectedStyle,
+        'styles': _selectedStyles.toList(),
       },
     );
   }

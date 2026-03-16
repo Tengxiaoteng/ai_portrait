@@ -1,10 +1,10 @@
 /// 生成结果展示页面
 ///
-/// 平板横屏布局：左右分栏对比原始照片与生成结果，
-/// 支持双指缩放、全屏查看、保存相册、分享等操作。
+/// 平板横屏布局：
+/// - 单张结果：左右分栏对比原始照片与生成结果
+/// - 多张结果：横向滑动画廊 + 缩略图条
+/// 支持双指缩放、全屏查看、保存相册、分享、打印等操作。
 library;
-
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -13,29 +13,43 @@ import '../widgets/adaptive_image.dart';
 
 // ─── 设计常量 ──────────────────────────────────────────
 
-const Color _bgColor = Color(0xFF0A0E21);
-const Color _primaryColor = Color(0xFF1E3C72);
-const Color _accentColor = Color(0xFFFF6B6B);
-const Color _surfaceColor = Color(0xFF151A30);
+const Color _bgColor = Color(0xFF0D0D0D);
+const Color _surfaceColor = Color(0xFF1A1A1A);
+const Color _accentColor = Color(0xFFF5A623);
+const Color _secondaryColor = Color(0xFFFF8C42);
+const Color _borderColor = Color(0xFF333333);
 
 class ResultScreen extends StatefulWidget {
-  /// 原始照片本地路径
-  final String originalImagePath;
-
-  /// 生成结果图片路径（本地路径或 URL）
-  final String generatedImagePath;
-
-  /// 风格名称
-  final String styleName;
+  /// 多张结果列表，每个 map 包含:
+  /// - 'originalPath': 原始照片路径
+  /// - 'generatedPath': 生成结果路径
+  /// - 'styleName': 风格名称
+  final List<Map<String, String>> results;
 
   /// 生成使用的提示词
   final String prompt;
 
+  // ── 兼容旧接口的工厂构造 ──
+
+  /// 单张结果的便捷构造（兼容旧调用方式）
+  ResultScreen.single({
+    super.key,
+    required String originalImagePath,
+    required String generatedImagePath,
+    required String styleName,
+    required this.prompt,
+  }) : results = [
+         {
+           'originalPath': originalImagePath,
+           'generatedPath': generatedImagePath,
+           'styleName': styleName,
+         },
+       ];
+
+  /// 多张结果构造
   const ResultScreen({
     super.key,
-    required this.originalImagePath,
-    required this.generatedImagePath,
-    required this.styleName,
+    required this.results,
     required this.prompt,
   });
 
@@ -47,7 +61,11 @@ class _ResultScreenState extends State<ResultScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _fadeController;
   late final Animation<double> _fadeAnimation;
+  late final PageController _pageController;
   bool _isPromptExpanded = false;
+  int _currentIndex = 0;
+
+  bool get _isMultiple => widget.results.length > 1;
 
   @override
   void initState() {
@@ -57,6 +75,8 @@ class _ResultScreenState extends State<ResultScreen>
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
+
+    _pageController = PageController();
 
     _fadeController = AnimationController(
       vsync: this,
@@ -72,6 +92,7 @@ class _ResultScreenState extends State<ResultScreen>
   @override
   void dispose() {
     _fadeController.dispose();
+    _pageController.dispose();
     // 恢复方向
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.landscapeLeft,
@@ -94,8 +115,12 @@ class _ResultScreenState extends State<ResultScreen>
             children: [
               // 顶部标题栏
               _buildTopBar(),
-              // 图片对比区
-              Expanded(child: _buildComparisonArea()),
+              // 图片区域
+              Expanded(
+                child: _isMultiple
+                    ? _buildGalleryArea()
+                    : _buildComparisonArea(),
+              ),
               // 提示词折叠区
               _buildPromptSection(),
               // 底部操作栏
@@ -111,6 +136,10 @@ class _ResultScreenState extends State<ResultScreen>
   // ─── 顶部栏 ──────────────────────────────────────────
 
   Widget _buildTopBar() {
+    final titleText = _isMultiple
+        ? '第 ${_currentIndex + 1}/${widget.results.length} 张 · ${widget.results[_currentIndex]['styleName'] ?? ''}'
+        : '生成结果';
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       child: Row(
@@ -121,7 +150,7 @@ class _ResultScreenState extends State<ResultScreen>
           ),
           const Spacer(),
           Text(
-            '生成结果',
+            titleText,
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.9),
               fontSize: 20,
@@ -135,9 +164,10 @@ class _ResultScreenState extends State<ResultScreen>
     );
   }
 
-  // ─── 图片对比区 ──────────────────────────────────────
+  // ─── 单张对比区 ────────────────────────────────────────
 
   Widget _buildComparisonArea() {
+    final result = widget.results.first;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32),
       child: Row(
@@ -147,7 +177,7 @@ class _ResultScreenState extends State<ResultScreen>
             flex: 45,
             child: _buildImageCard(
               label: '原始照片',
-              imagePath: widget.originalImagePath,
+              imagePath: result['originalPath']!,
               labelColor: Colors.white70,
             ),
           ),
@@ -161,7 +191,7 @@ class _ResultScreenState extends State<ResultScreen>
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: const LinearGradient(
-                    colors: [_primaryColor, _accentColor],
+                    colors: [_accentColor, _secondaryColor],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -190,8 +220,8 @@ class _ResultScreenState extends State<ResultScreen>
           Expanded(
             flex: 45,
             child: _buildImageCard(
-              label: widget.styleName,
-              imagePath: widget.generatedImagePath,
+              label: result['styleName'] ?? '',
+              imagePath: result['generatedPath']!,
               labelColor: _accentColor,
             ),
           ),
@@ -199,6 +229,112 @@ class _ResultScreenState extends State<ResultScreen>
       ),
     );
   }
+
+  // ─── 多张画廊区 ────────────────────────────────────────
+
+  Widget _buildGalleryArea() {
+    return Column(
+      children: [
+        // 大图滑动
+        Expanded(
+          child: PageView.builder(
+            controller: _pageController,
+            itemCount: widget.results.length,
+            onPageChanged: (index) {
+              setState(() => _currentIndex = index);
+            },
+            itemBuilder: (context, index) {
+              final result = widget.results[index];
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 48),
+                child: GestureDetector(
+                  onTap: () => _openFullScreen(
+                    result['generatedPath']!,
+                    result['styleName'] ?? '',
+                  ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.4),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: InteractiveViewer(
+                        minScale: 1.0,
+                        maxScale: 4.0,
+                        child: AdaptiveImage(
+                          path: result['generatedPath']!,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
+        // 缩略图条
+        _buildThumbnailBar(),
+      ],
+    );
+  }
+
+  Widget _buildThumbnailBar() {
+    return SizedBox(
+      height: 64,
+      child: Center(
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          shrinkWrap: true,
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          itemCount: widget.results.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          itemBuilder: (context, index) {
+            final isSelected = index == _currentIndex;
+            final result = widget.results[index];
+            return GestureDetector(
+              onTap: () {
+                _pageController.animateToPage(
+                  index,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                );
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isSelected ? _accentColor : _borderColor,
+                    width: isSelected ? 2.5 : 1,
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: AdaptiveImage(
+                    path: result['generatedPath']!,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  // ─── 图片卡片（单张对比用） ────────────────────────────
 
   Widget _buildImageCard({
     required String label,
@@ -240,20 +376,16 @@ class _ResultScreenState extends State<ResultScreen>
                 child: InteractiveViewer(
                   minScale: 1.0,
                   maxScale: 4.0,
-                  child: _buildImage(imagePath),
+                  child: AdaptiveImage(
+                    path: imagePath,
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
             ),
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildImage(String path) {
-    return AdaptiveImage(
-      path: path,
-      fit: BoxFit.contain,
     );
   }
 
@@ -349,8 +481,14 @@ class _ResultScreenState extends State<ResultScreen>
         children: [
           _buildPrimaryButton(
             icon: Icons.save_alt_rounded,
-            label: '保存到相册',
+            label: _isMultiple ? '保存全部' : '保存到相册',
             onPressed: _onSave,
+          ),
+          const SizedBox(width: 12),
+          _buildPrimaryButton(
+            icon: Icons.print_rounded,
+            label: _isMultiple ? '打印全部' : '打印',
+            onPressed: _onPrint,
           ),
           const SizedBox(width: 12),
           _buildSecondaryButton(
@@ -395,13 +533,13 @@ class _ResultScreenState extends State<ResultScreen>
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             gradient: const LinearGradient(
-              colors: [_primaryColor, Color(0xFF2A5298)],
+              colors: [_accentColor, _secondaryColor],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             boxShadow: [
               BoxShadow(
-                color: _primaryColor.withValues(alpha: 0.4),
+                color: _accentColor.withValues(alpha: 0.4),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -442,15 +580,13 @@ class _ResultScreenState extends State<ResultScreen>
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             color: _surfaceColor,
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.08),
-            ),
+            border: Border.all(color: _borderColor),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, color: Colors.white60, size: 18),
+              Icon(icon, color: const Color(0xFF888888), size: 18),
               const SizedBox(width: 6),
               Text(
                 label,
@@ -483,8 +619,22 @@ class _ResultScreenState extends State<ResultScreen>
   // ─── 操作回调 ────────────────────────────────────────
 
   void _onSave() {
-    // TODO: 接入 image_gallery_saver 或 photo_manager 保存到相册
-    _showToast('已保存到相册');
+    if (_isMultiple) {
+      // TODO: 接入 image_gallery_saver 批量保存
+      _showToast('已保存全部 ${widget.results.length} 张到相册');
+    } else {
+      // TODO: 接入 image_gallery_saver 或 photo_manager 保存到相册
+      _showToast('已保存到相册');
+    }
+  }
+
+  void _onPrint() {
+    if (_isMultiple) {
+      _showToast('正在连接打印机... (${widget.results.length} 张)');
+    } else {
+      _showToast('正在连接打印机...');
+    }
+    // TODO: 接入真实打印服务
   }
 
   void _onShare() {
@@ -552,16 +702,12 @@ class _FullScreenViewer extends StatelessWidget {
         child: InteractiveViewer(
           minScale: 0.5,
           maxScale: 6.0,
-          child: _buildFullImage(),
+          child: AdaptiveImage(
+            path: imagePath,
+            fit: BoxFit.contain,
+          ),
         ),
       ),
-    );
-  }
-
-  Widget _buildFullImage() {
-    return AdaptiveImage(
-      path: imagePath,
-      fit: BoxFit.contain,
     );
   }
 }

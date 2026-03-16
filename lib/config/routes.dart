@@ -50,7 +50,7 @@ class AppRoutes {
       case result:
         final map = args as Map<String, dynamic>;
         return _buildRoute(
-          ResultScreen(
+          ResultScreen.single(
             originalImagePath: map['originalImagePath'] as String,
             generatedImagePath: map['generatedImagePath'] as String,
             styleName: map['styleName'] as String,

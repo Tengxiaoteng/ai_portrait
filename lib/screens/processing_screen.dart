@@ -164,7 +164,7 @@ class _ProcessingScreenState extends State<ProcessingScreen>
 
     Navigator.of(context).pushReplacement(
       PageRouteBuilder<void>(
-        pageBuilder: (context, animation, secondaryAnimation) => ResultScreen(
+        pageBuilder: (context, animation, secondaryAnimation) => ResultScreen.single(
           originalImagePath: widget.imagePaths.first,
           generatedImagePath: mockGeneratedPath,
           styleName: widget.style.name,
@@ -223,7 +223,7 @@ class _ProcessingScreenState extends State<ProcessingScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E21),
+      backgroundColor: const Color(0xFF0D0D0D),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -288,7 +288,7 @@ class _ProcessingScreenState extends State<ProcessingScreen>
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF1E3C72).withValues(alpha: 0.6),
+                    color: const Color(0xFFF5A623).withValues(alpha: 0.6),
                     blurRadius: 30,
                     spreadRadius: 5,
                   ),
@@ -317,7 +317,7 @@ class _ProcessingScreenState extends State<ProcessingScreen>
     return Container(
       width: size,
       height: size,
-      color: const Color(0xFF1A1F36),
+      color: const Color(0xFF1A1A1A),
       child: const Icon(Icons.person, size: 80, color: Colors.white24),
     );
   }
@@ -344,8 +344,8 @@ class _ProcessingScreenState extends State<ProcessingScreen>
             const SizedBox(height: 8),
             Text(
               '步骤 ${_currentStep + 1} / ${_stepTexts.length}',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.4),
+              style: const TextStyle(
+                color: Color(0xFF888888),
                 fontSize: 14,
               ),
             ),
@@ -370,7 +370,7 @@ class _ProcessingScreenState extends State<ProcessingScreen>
                   // 背景轨道
                   Container(
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.08),
+                      color: const Color(0xFF222222),
                       borderRadius: BorderRadius.circular(6),
                     ),
                   ),
@@ -385,9 +385,9 @@ class _ProcessingScreenState extends State<ProcessingScreen>
                             borderRadius: BorderRadius.circular(6),
                             gradient: LinearGradient(
                               colors: const [
-                                Color(0xFF1E3C72),
-                                Color(0xFF2A5298),
-                                Color(0xFF1E3C72),
+                                Color(0xFFF5A623),
+                                Color(0xFFFF8C42),
+                                Color(0xFFF5A623),
                               ],
                               stops: [
                                 (_shimmerController.value - 0.3)
@@ -411,8 +411,8 @@ class _ProcessingScreenState extends State<ProcessingScreen>
             alignment: Alignment.centerRight,
             child: Text(
               '${(_progress * 100).toInt()}%',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.5),
+              style: const TextStyle(
+                color: Color(0xFF888888),
                 fontSize: 13,
               ),
             ),
@@ -428,8 +428,8 @@ class _ProcessingScreenState extends State<ProcessingScreen>
         ((_totalDuration.inSeconds) * (1.0 - _progress)).round();
     return Text(
       '大约需要 $remaining 秒',
-      style: TextStyle(
-        color: Colors.white.withValues(alpha: 0.35),
+      style: const TextStyle(
+        color: Color(0xFF666666),
         fontSize: 14,
       ),
     );
@@ -461,10 +461,10 @@ class _HaloPainter extends CustomPainter {
         startAngle: startAngle,
         endAngle: startAngle + sweepAngle,
         colors: [
-          const Color(0xFF1E3C72).withValues(alpha: 0.0),
-          Color.fromRGBO(30, 60, 114, opacity),
-          const Color(0xFFFF6B6B).withValues(alpha: opacity),
-          const Color(0xFF1E3C72).withValues(alpha: 0.0),
+          const Color(0xFFF5A623).withValues(alpha: 0.0),
+          Color.fromRGBO(245, 166, 35, opacity),
+          const Color(0xFFFF8C42).withValues(alpha: opacity),
+          const Color(0xFFF5A623).withValues(alpha: 0.0),
         ],
         stops: const [0.0, 0.3, 0.7, 1.0],
       ).createShader(Rect.fromCircle(center: center, radius: radius));
