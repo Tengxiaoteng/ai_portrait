@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../models/style_data.dart';
 import '../models/style_model.dart';
+import '../widgets/adaptive_image.dart';
 
 /// Style selection screen optimized for tablet landscape layout.
 ///
@@ -129,11 +130,10 @@ class _StylePickerScreenState extends State<StylePickerScreen>
             child: ClipRRect(
               borderRadius: BorderRadius.circular(_cardRadius),
               child: widget.imagePaths.isNotEmpty
-                  ? Image.file(
-                      File(widget.imagePaths.first),
+                  ? AdaptiveImage(
+                      path: widget.imagePaths.first,
                       fit: BoxFit.cover,
                       width: double.infinity,
-                      errorBuilder: (_, __, ___) => _photoPlaceholder(),
                     )
                   : _photoPlaceholder(),
             ),
@@ -171,21 +171,11 @@ class _StylePickerScreenState extends State<StylePickerScreen>
         itemBuilder: (_, index) {
           return ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: Image.file(
-              File(widget.imagePaths[index]),
+            child: AdaptiveImage(
+              path: widget.imagePaths[index],
               width: 56,
               height: 56,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                width: 56,
-                height: 56,
-                color: Colors.white10,
-                child: const Icon(
-                  Icons.person,
-                  size: 24,
-                  color: Colors.white24,
-                ),
-              ),
             ),
           );
         },

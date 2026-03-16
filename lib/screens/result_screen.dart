@@ -9,6 +9,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../widgets/adaptive_image.dart';
+
 // ─── 设计常量 ──────────────────────────────────────────
 
 const Color _bgColor = Color(0xFF0A0E21);
@@ -249,36 +251,10 @@ class _ResultScreenState extends State<ResultScreen>
   }
 
   Widget _buildImage(String path) {
-    // 支持本地文件和网络 URL
-    if (path.startsWith('http://') || path.startsWith('https://')) {
-      return Image.network(
-        path,
-        fit: BoxFit.contain,
-        errorBuilder: (_, error, stack) => _buildImageError(),
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return Center(
-            child: CircularProgressIndicator(
-              value: loadingProgress.expectedTotalBytes != null
-                  ? loadingProgress.cumulativeBytesLoaded /
-                      loadingProgress.expectedTotalBytes!
-                  : null,
-              color: _primaryColor,
-            ),
-          );
-        },
-      );
-    }
-
-    final file = File(path);
-    if (file.existsSync()) {
-      return Image.file(
-        file,
-        fit: BoxFit.contain,
-        errorBuilder: (_, error, stack) => _buildImageError(),
-      );
-    }
-    return _buildImageError();
+    return AdaptiveImage(
+      path: path,
+      fit: BoxFit.contain,
+    );
   }
 
   Widget _buildImageError() {
@@ -583,35 +559,9 @@ class _FullScreenViewer extends StatelessWidget {
   }
 
   Widget _buildFullImage() {
-    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-      return Image.network(
-        imagePath,
-        fit: BoxFit.contain,
-        errorBuilder: (_, error, stack) => const Icon(
-          Icons.broken_image_outlined,
-          color: Colors.white24,
-          size: 64,
-        ),
-      );
-    }
-
-    final file = File(imagePath);
-    if (file.existsSync()) {
-      return Image.file(
-        file,
-        fit: BoxFit.contain,
-        errorBuilder: (_, error, stack) => const Icon(
-          Icons.broken_image_outlined,
-          color: Colors.white24,
-          size: 64,
-        ),
-      );
-    }
-
-    return const Icon(
-      Icons.broken_image_outlined,
-      color: Colors.white24,
-      size: 64,
+    return AdaptiveImage(
+      path: imagePath,
+      fit: BoxFit.contain,
     );
   }
 }

@@ -4,6 +4,8 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../widgets/adaptive_image.dart';
+
 /// Full-screen camera page optimised for tablet landscape.
 /// Provides capture, camera-switch, and gallery-pick actions.
 class CameraScreen extends StatefulWidget {
@@ -401,18 +403,11 @@ class _StylePickerPlaceholder extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
-              child: Image.file(
-                File(imagePath),
+              child: AdaptiveImage(
+                path: imagePath,
                 width: 300,
                 height: 300,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  width: 300,
-                  height: 300,
-                  color: Colors.grey[800],
-                  child: const Icon(Icons.broken_image,
-                      color: Colors.white54, size: 64),
-                ),
               ),
             ),
             const SizedBox(height: 24),

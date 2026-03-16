@@ -12,6 +12,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../models/style_model.dart';
+import '../widgets/adaptive_image.dart';
 import 'result_screen.dart';
 
 /// 处理步骤描述
@@ -304,19 +305,12 @@ class _ProcessingScreenState extends State<ProcessingScreen>
   }
 
   Widget _buildPhotoImage(double size) {
-    final path = widget.imagePaths.first;
-    final file = File(path);
-
-    if (file.existsSync()) {
-      return Image.file(
-        file,
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        errorBuilder: (_, error, stack) => _buildPlaceholder(size),
-      );
-    }
-    return _buildPlaceholder(size);
+    return AdaptiveImage(
+      path: widget.imagePaths.first,
+      width: size,
+      height: size,
+      fit: BoxFit.cover,
+    );
   }
 
   Widget _buildPlaceholder(double size) {
