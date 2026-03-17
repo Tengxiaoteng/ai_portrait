@@ -1,14 +1,11 @@
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
-import '../widgets/adaptive_image.dart';
 import 'style_picker_screen.dart';
 
-/// Full-screen camera page optimised for tablet landscape.
-/// Provides capture, camera-switch, and gallery-pick actions.
 class CameraScreen extends StatefulWidget {
   const CameraScreen({super.key});
 
@@ -18,30 +15,31 @@ class CameraScreen extends StatefulWidget {
 
 class _CameraScreenState extends State<CameraScreen>
     with WidgetsBindingObserver, TickerProviderStateMixin {
+
+  static const _accent = Color(0xFFD4A056);
+  static const _dark = Color(0xFF2D2D2D);
+
   CameraController? _controller;
   List<CameraDescription> _cameras = [];
-  int _currentCameraIndex = 0;
-  bool _isInitialised = false;
-  bool _isCapturing = false;
-  String? _errorMessage;
+  int _cameraIdx = 0;
+  bool _ready = false;
+  bool _capturing = false;
+  String? _error;
+  String? _capturedPath; // 拍完后预览
 
-  late final AnimationController _shutterAnimController;
+  late final AnimationController _shutterAnim;
   late final Animation<double> _shutterScale;
+  late final AnimationController _flashAnim;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _shutterAnimController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 150),
+    _shutterAnim = AnimationController(vsync: this, duration: const Duration(milliseconds: 120));
+    _shutterScale = Tween(begin: 1.0, end: 0.85).animate(
+      CurvedAnimation(parent: _shutterAnim, curve: Curves.easeInOut),
     );
-    _shutterScale = Tween<double>(begin: 1.0, end: 0.85).animate(
-      CurvedAnimation(
-        parent: _shutterAnimController,
-        curve: Curves.easeInOut,
-      ),
-    );
+    _flashAnim = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
     _initCameras();
   }
 
@@ -49,7 +47,8 @@ class _CameraScreenState extends State<CameraScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _controller?.dispose();
-    _shutterAnimController.dispose();
+    _shutterAnim.dispose();
+    _flashAnim.dispose();
     super.dispose();
   }
 
@@ -59,7 +58,7 @@ class _CameraScreenState extends State<CameraScreen>
     if (state == AppLifecycleState.inactive) {
       _controller?.dispose();
     } else if (state == AppLifecycleState.resumed) {
-      _initCamera(_cameras[_currentCameraIndex]);
+      _initCamera(_cameras[_cameraIdx]);
     }
   }
 
@@ -67,140 +66,127 @@ class _CameraScreenState extends State<CameraScreen>
     try {
       _cameras = await availableCameras();
       if (_cameras.isEmpty) {
-        setState(() => _errorMessage = '\u672a\u68c0\u6d4b\u5230\u6444\u50cf\u5934');
+        setState(() => _error = '未检测到摄像头');
         return;
       }
-      // Prefer back camera as default.
-      _currentCameraIndex = _cameras.indexWhere(
-        (c) => c.lensDirection == CameraLensDirection.back,
-      );
-      if (_currentCameraIndex < 0) _currentCameraIndex = 0;
-      await _initCamera(_cameras[_currentCameraIndex]);
+      // 默认前置（自拍）
+      _cameraIdx = _cameras.indexWhere((c) => c.lensDirection == CameraLensDirection.front);
+      if (_cameraIdx < 0) _cameraIdx = 0;
+      await _initCamera(_cameras[_cameraIdx]);
     } catch (e) {
-      setState(() => _errorMessage = '\u6444\u50cf\u5934\u521d\u59cb\u5316\u5931\u8d25: $e');
+      setState(() => _error = '摄像头初始化失败: $e');
     }
   }
 
-  Future<void> _initCamera(CameraDescription camera) async {
-    final previousController = _controller;
-    final newController = CameraController(
-      camera,
-      ResolutionPreset.high,
-      enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.jpeg,
-    );
-
+  Future<void> _initCamera(CameraDescription cam) async {
+    final prev = _controller;
+    final ctrl = CameraController(cam, ResolutionPreset.high, enableAudio: false, imageFormatGroup: ImageFormatGroup.jpeg);
     try {
-      await newController.initialize();
+      await ctrl.initialize();
     } catch (e) {
-      setState(() => _errorMessage = '\u6444\u50cf\u5934\u521d\u59cb\u5316\u5931\u8d25: $e');
+      setState(() => _error = '摄像头初始化失败: $e');
       return;
     }
-
-    await previousController?.dispose();
-
+    await prev?.dispose();
     if (!mounted) return;
-    setState(() {
-      _controller = newController;
-      _isInitialised = true;
-      _errorMessage = null;
-    });
+    setState(() { _controller = ctrl; _ready = true; _error = null; });
   }
 
   Future<void> _switchCamera() async {
     if (_cameras.length < 2) return;
-    final nextIndex = (_currentCameraIndex + 1) % _cameras.length;
-    setState(() {
-      _currentCameraIndex = nextIndex;
-      _isInitialised = false;
-    });
-    await _initCamera(_cameras[nextIndex]);
+    _cameraIdx = (_cameraIdx + 1) % _cameras.length;
+    setState(() => _ready = false);
+    await _initCamera(_cameras[_cameraIdx]);
   }
 
-  Future<void> _capturePhoto() async {
-    if (_controller == null ||
-        !_controller!.value.isInitialized ||
-        _isCapturing) {
-      return;
-    }
-
-    setState(() => _isCapturing = true);
-    _shutterAnimController.forward().then((_) {
-      _shutterAnimController.reverse();
-    });
+  Future<void> _capture() async {
+    if (_controller == null || !_controller!.value.isInitialized || _capturing) return;
+    setState(() => _capturing = true);
+    _shutterAnim.forward().then((_) => _shutterAnim.reverse());
+    // 闪白效果
+    _flashAnim.forward().then((_) => _flashAnim.reverse());
 
     try {
-      final xFile = await _controller!.takePicture();
+      final file = await _controller!.takePicture();
       if (!mounted) return;
-      _navigateToStylePicker(xFile.path);
+      setState(() => _capturedPath = file.path);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('\u62cd\u7167\u5931\u8d25: $e')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('拍照失败: $e')));
       }
     } finally {
-      if (mounted) setState(() => _isCapturing = false);
+      if (mounted) setState(() => _capturing = false);
     }
   }
 
-  Future<void> _pickFromGallery() async {
-    final picker = ImagePicker();
-    final image = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 2048,
-      maxHeight: 2048,
-      imageQuality: 90,
-    );
-    if (image != null && mounted) {
-      _navigateToStylePicker(image.path);
-    }
+  void _retake() {
+    setState(() => _capturedPath = null);
   }
 
-  void _navigateToStylePicker(String imagePath) {
-    Navigator.push(
+  void _usePhoto() {
+    if (_capturedPath == null) return;
+    Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => StylePickerScreen(imagePaths: [imagePath]),
+        builder: (_) => StylePickerScreen(imagePaths: [_capturedPath!]),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    // 拍照后显示预览确认
+    if (_capturedPath != null) {
+      return _previewScreen();
+    }
+    return _cameraViewScreen();
+  }
+
+  // ════════════════════════════════════════
+  //  相机取景
+  // ════════════════════════════════════════
+  Widget _cameraViewScreen() {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          _buildCameraPreview(),
-          _buildTopBar(),
-          _buildBottomToolbar(),
-        ],
-      ),
+      body: Stack(fit: StackFit.expand, children: [
+        _cameraPreview(),
+        // 闪白效果
+        AnimatedBuilder(
+          animation: _flashAnim,
+          builder: (_, __) => Opacity(
+            opacity: _flashAnim.value * 0.6,
+            child: Container(color: Colors.white),
+          ),
+        ),
+        _topBar(),
+        _bottomBar(),
+        // 中间人脸引导框
+        _faceGuide(),
+      ]),
     );
   }
 
-  Widget _buildCameraPreview() {
-    if (_errorMessage != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Text(
-            _errorMessage!,
-            style: const TextStyle(color: Colors.white70, fontSize: 18),
-            textAlign: TextAlign.center,
-          ),
-        ),
-      );
+  Widget _cameraPreview() {
+    if (_error != null) {
+      return Center(child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.camera_alt_outlined, size: 64, color: Colors.white24),
+          const SizedBox(height: 16),
+          Text(_error!, style: const TextStyle(color: Colors.white54, fontSize: 16), textAlign: TextAlign.center),
+        ],
+      ));
     }
-
-    if (!_isInitialised || _controller == null) {
-      return const Center(
-        child: CircularProgressIndicator(color: Colors.white54),
-      );
+    if (!_ready || _controller == null) {
+      return const Center(child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircularProgressIndicator(color: Color(0xFFD4A056)),
+          SizedBox(height: 16),
+          Text('正在启动相机...', style: TextStyle(color: Colors.white54, fontSize: 14)),
+        ],
+      ));
     }
-
     return Center(
       child: AspectRatio(
         aspectRatio: _controller!.value.aspectRatio,
@@ -209,174 +195,207 @@ class _CameraScreenState extends State<CameraScreen>
     );
   }
 
-  Widget _buildTopBar() {
+  Widget _faceGuide() {
+    return Center(
+      child: IgnorePointer(
+        child: Container(
+          width: 260,
+          height: 340,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(130),
+            border: Border.all(color: Colors.white.withOpacity(0.25), width: 2),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _topBar() {
     return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
+      top: 0, left: 0, right: 0,
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              IconButton(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                color: Colors.white,
-                iconSize: 28,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          child: Row(children: [
+            _circleBtn(Icons.arrow_back_ios_new, () => Navigator.pop(context)),
+            const Spacer(),
+            // 提示文字
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text('请将面部对准框内', style: TextStyle(
+                    color: Colors.white70, fontSize: 13, letterSpacing: 1,
+                  )),
+                ),
               ),
-              const Spacer(),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomToolbar() {
-    return Positioned(
-      bottom: 0,
-      left: 0,
-      right: 0,
-      child: SafeArea(
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 48),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.bottomCenter,
-              end: Alignment.topCenter,
-              colors: [
-                Colors.black.withValues(alpha: 0.7),
-                Colors.transparent,
-              ],
             ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _ToolbarButton(
-                icon: Icons.cameraswitch_rounded,
-                label: '\u5207\u6362',
-                onTap: _switchCamera,
-              ),
-              _buildShutterButton(),
-              _ToolbarButton(
-                icon: Icons.photo_library_rounded,
-                label: '\u76f8\u518c',
-                onTap: _pickFromGallery,
-              ),
-            ],
-          ),
+            const Spacer(),
+            _circleBtn(Icons.cameraswitch_rounded, _switchCamera),
+          ]),
         ),
       ),
     );
   }
 
-  Widget _buildShutterButton() {
+  Widget _circleBtn(IconData icon, VoidCallback onTap) {
     return GestureDetector(
-      onTap: _capturePhoto,
-      child: AnimatedBuilder(
-        animation: _shutterScale,
-        builder: (context, child) {
-          return Transform.scale(
-            scale: _shutterScale.value,
-            child: child,
-          );
-        },
-        child: Container(
-          width: 80,
-          height: 80,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 4),
-          ),
-          padding: const EdgeInsets.all(4),
+      onTap: onTap,
+      child: ClipOval(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
           child: Container(
+            width: 44, height: 44,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: _isCapturing ? Colors.grey : Colors.white,
+              color: Colors.black.withOpacity(0.3),
+              border: Border.all(color: Colors.white.withOpacity(0.1)),
             ),
+            child: Icon(icon, color: Colors.white, size: 20),
           ),
         ),
       ),
     );
   }
-}
 
-class _ToolbarButton extends StatefulWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _ToolbarButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  State<_ToolbarButton> createState() => _ToolbarButtonState();
-}
-
-class _ToolbarButtonState extends State<_ToolbarButton>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _scale;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 100),
-    );
-    _scale = Tween<double>(begin: 1.0, end: 0.9).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => _controller.forward(),
-      onTapUp: (_) {
-        _controller.reverse();
-        widget.onTap();
-      },
-      onTapCancel: () => _controller.reverse(),
-      child: AnimatedBuilder(
-        animation: _scale,
-        builder: (context, child) {
-          return Transform.scale(scale: _scale.value, child: child);
-        },
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
+  Widget _bottomBar() {
+    return Positioned(
+      bottom: 0, left: 0, right: 0,
+      child: SafeArea(
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 48),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // 拍照按钮
+              GestureDetector(
+                onTap: _capture,
+                child: AnimatedBuilder(
+                  animation: _shutterScale,
+                  builder: (_, child) => Transform.scale(scale: _shutterScale.value, child: child),
+                  child: Container(
+                    width: 80, height: 80,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 4),
+                      boxShadow: [BoxShadow(color: _accent.withOpacity(0.3), blurRadius: 20)],
+                    ),
+                    padding: const EdgeInsets.all(4),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _capturing ? Colors.grey : Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
               ),
-              child: Icon(widget.icon, color: Colors.white, size: 26),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              widget.label,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.8),
-                fontSize: 12,
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════
+  //  拍照后预览确认
+  // ════════════════════════════════════════
+  Widget _previewScreen() {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF6F2EE),
+      body: SafeArea(
+        child: Column(children: [
+          // 顶栏
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            child: Row(children: [
+              GestureDetector(
+                onTap: _retake,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white, borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE8E3DD)),
+                  ),
+                  child: const Icon(Icons.arrow_back_ios_new, size: 16, color: _dark),
+                ),
+              ),
+              const SizedBox(width: 16),
+              const Text('确认照片', style: TextStyle(
+                fontSize: 20, fontWeight: FontWeight.w700, color: _dark, letterSpacing: 2,
+              )),
+            ]),
+          ),
+          // 照片预览
+          Expanded(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: Image.file(File(_capturedPath!), fit: BoxFit.contain),
+                ),
+              ),
+            ),
+          ),
+          // 底部按钮
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 20),
+            child: Row(children: [
+              // 重拍
+              Expanded(
+                child: GestureDetector(
+                  onTap: _retake,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(30),
+                      border: Border.all(color: const Color(0xFFE8E3DD)),
+                      color: Colors.white,
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.refresh, color: _dark, size: 20),
+                        SizedBox(width: 8),
+                        Text('重新拍照', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _dark)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              // 使用
+              Expanded(
+                child: GestureDetector(
+                  onTap: _usePhoto,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(30),
+                      color: _dark,
+                      boxShadow: [BoxShadow(color: _dark.withOpacity(0.15), blurRadius: 12, offset: const Offset(0, 4))],
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('使用照片', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white)),
+                        SizedBox(width: 8),
+                        Icon(Icons.arrow_forward, color: _accent, size: 20),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ]),
+          ),
+        ]),
       ),
     );
   }
