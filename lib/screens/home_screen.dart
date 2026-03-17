@@ -21,22 +21,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   int get _styleCount => StyleData.allStyles.length;
 
-  // 照片墙 - 明亮温暖的色调
+  // 照片墙 - 真实图片
   static const _col1 = [
-    _Img('油画', Color(0xFFD4A574), Color(0xFFB8896A)),
-    _Img('赛博朋克', Color(0xFF6B8EAD), Color(0xFF4A6F8A)),
-    _Img('古装汉服', Color(0xFFC27C6B), Color(0xFFA8625A)),
-    _Img('3D皮克斯', Color(0xFFA882C4), Color(0xFF8B6AA8)),
-    _Img('日系清新', Color(0xFF8BC4A8), Color(0xFF6BA88B)),
-    _Img('情侣写真', Color(0xFFD49A9A), Color(0xFFB87878)),
+    _Img('油画', 'assets/styles/oil_painting.jpg'),
+    _Img('赛博朋克', 'assets/styles/cyberpunk.jpg'),
+    _Img('古装汉服', 'assets/styles/hanfu.jpg'),
+    _Img('3D皮克斯', 'assets/styles/pixar.jpg'),
+    _Img('日系清新', 'assets/styles/japanese.jpg'),
+    _Img('情侣写真', 'assets/styles/couple.jpg'),
+    _Img('毕业照', 'assets/styles/graduation.jpg'),
   ];
   static const _col2 = [
-    _Img('动漫', Color(0xFFCB8EC0), Color(0xFFAA72A0)),
-    _Img('水彩', Color(0xFF82B5C8), Color(0xFF6498AB)),
-    _Img('婚纱照', Color(0xFFE8D0A8), Color(0xFFCCB48E)),
-    _Img('暗黑哥特', Color(0xFF7A7A9A), Color(0xFF5E5E7E)),
-    _Img('商务照', Color(0xFF9AABB8), Color(0xFF7E8F9C)),
-    _Img('全家福', Color(0xFF8DC49A), Color(0xFF72A87E)),
+    _Img('动漫', 'assets/styles/anime.jpg'),
+    _Img('水彩', 'assets/styles/watercolor.jpg'),
+    _Img('婚纱照', 'assets/styles/wedding.jpg'),
+    _Img('暗黑哥特', 'assets/styles/gothic.jpg'),
+    _Img('商务照', 'assets/styles/business.jpg'),
+    _Img('全家福', 'assets/styles/family.jpg'),
+    _Img('旅行风', 'assets/styles/travel.jpg'),
   ];
 
   @override
@@ -254,17 +256,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       // 浅色底
       Container(color: const Color(0xFFF0EBE5)),
       // 双列照片
-      AnimatedBuilder(
-        animation: _scrollCtrl,
-        builder: (_, __) => Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(children: [
-            Expanded(child: _vCol(_col1, _scrollCtrl.value, false)),
-            const SizedBox(width: 10),
-            Expanded(child: _vCol(_col2, _scrollCtrl.value, true)),
-          ]),
-        ),
-      ),
+      LayoutBuilder(builder: (ctx, constraints) {
+        final colW = (constraints.maxWidth - 34) / 2; // 12+10+12 padding
+        final cardH = colW * 1.5; // 2:3 比例
+        return AnimatedBuilder(
+          animation: _scrollCtrl,
+          builder: (_, __) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(children: [
+              Expanded(child: _vCol(_col1, _scrollCtrl.value, false, cardH)),
+              const SizedBox(width: 10),
+              Expanded(child: _vCol(_col2, _scrollCtrl.value, true, cardH)),
+            ]),
+          ),
+        );
+      }),
       // 上渐隐
       Positioned(top: 0, left: 0, right: 0, height: 80,
         child: Container(decoration: BoxDecoration(gradient: LinearGradient(
@@ -289,10 +295,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     ]);
   }
 
-  Widget _vCol(List<_Img> items, double t, bool rev) {
-    const ch = 220.0;
+  Widget _vCol(List<_Img> items, double t, bool rev, double ch) {
     const gap = 10.0;
-    const unit = ch + gap;
+    final unit = ch + gap;
     final total = items.length * unit;
     final all = [...items, ...items, ...items];
     final dy = rev ? t * total : -t * total;
@@ -320,48 +325,65 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       width: double.infinity,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [img.c1, img.c2],
-        ),
         boxShadow: [
           BoxShadow(
-            color: img.c2.withOpacity(0.2),
+            color: Colors.black.withOpacity(0.1),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Stack(children: [
-        // 人像轮廓装饰
-        Positioned(
-          right: 16, top: 16,
-          child: Icon(Icons.person_outline_rounded, size: 36,
-            color: Colors.white.withOpacity(0.15)),
-        ),
-        // 标签
-        Positioned(
-          left: 14, bottom: 14,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.25),
-              borderRadius: BorderRadius.circular(8),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Stack(children: [
+          // 真实图片
+          Positioned.fill(
+            child: Image.asset(
+              img.asset,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                color: const Color(0xFFD4C4B0),
+                child: const Center(child: Icon(Icons.image, color: Colors.white38, size: 32)),
+              ),
             ),
-            child: Text(img.name, style: const TextStyle(
-              fontSize: 12, color: Colors.white,
-              fontWeight: FontWeight.w600, letterSpacing: 2,
-            )),
           ),
-        ),
-      ]),
+          // 底部渐变遮罩
+          Positioned(
+            left: 0, right: 0, bottom: 0, height: 60,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                  colors: [Colors.black.withOpacity(0.5), Colors.transparent],
+                ),
+              ),
+            ),
+          ),
+          // 标签
+          Positioned(
+            left: 12, bottom: 12,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white.withOpacity(0.15)),
+              ),
+              child: Text(img.name, style: const TextStyle(
+                fontSize: 12, color: Colors.white,
+                fontWeight: FontWeight.w600, letterSpacing: 2,
+              )),
+            ),
+          ),
+        ]),
+      ),
     );
   }
 }
 
 class _Img {
   final String name;
-  final Color c1, c2;
-  const _Img(this.name, this.c1, this.c2);
+  final String asset;
+  const _Img(this.name, this.asset);
 }
