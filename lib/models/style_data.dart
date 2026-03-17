@@ -335,7 +335,8 @@ class StyleData {
           'warm family portrait, family members together, happy and '
           'loving, coordinated outfits, soft warm lighting, cozy home or '
           'garden background, genuine smiles',
-      peopleCount: 6,
+      peopleCount: 2,
+      minPeople: 2,
     ),
     StyleModel(
       name: '亲子照',
@@ -345,7 +346,8 @@ class StyleData {
           'parent-child portrait, loving interaction, playful moment, '
           'warm natural lighting, tender embrace, joyful expressions, '
           'family love, candid feel',
-      peopleCount: 3,
+      peopleCount: 2,
+      minPeople: 2,
     ),
   ];
 

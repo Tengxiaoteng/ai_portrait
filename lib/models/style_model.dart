@@ -6,7 +6,8 @@ class StyleModel {
   final String category;
   final String description;
   final String promptHint;
-  final int peopleCount;
+  final int peopleCount;  // 显示用的人数标签
+  final int minPeople;    // 最少需要几个人（>=此人数即可）
   final String? compositionHint;
 
   const StyleModel({
@@ -15,10 +16,17 @@ class StyleModel {
     required this.description,
     required this.promptHint,
     required this.peopleCount,
+    int? minPeople,
     this.compositionHint,
-  });
+  }) : minPeople = minPeople ?? peopleCount;
 
-  bool get isGroupStyle => peopleCount > 1;
+  bool get isGroupStyle => minPeople > 1;
+
+  /// 检查给定人数是否满足此风格要求
+  bool matchesPeople(int count) {
+    if (minPeople <= 1) return true; // 单人风格，任意人数OK
+    return count >= minPeople;       // 多人风格，>=最少人数即可
+  }
 }
 
 /// Category constants used across the style system.

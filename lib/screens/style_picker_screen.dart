@@ -1,18 +1,13 @@
-// ignore_for_file: unnecessary_underscores
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../models/style_data.dart';
 import '../models/style_model.dart';
 import '../widgets/adaptive_image.dart';
 
-/// Style selection screen optimized for tablet landscape layout.
-///
-/// Left panel (30%): photo preview with count.
-/// Right panel (70%): category tabs + style grid + generate button.
 class StylePickerScreen extends StatefulWidget {
   final List<String> imagePaths;
-
   const StylePickerScreen({super.key, required this.imagePaths});
 
   @override
@@ -21,477 +16,587 @@ class StylePickerScreen extends StatefulWidget {
 
 class _StylePickerScreenState extends State<StylePickerScreen>
     with SingleTickerProviderStateMixin {
-  // -- Constants ----------------------------------------------------------
-  static const _bgColor = Color(0xFF0D0D0D);
-  static const _cardColor = Color(0xFF1A1A1A);
-  static const _accentColor = Color(0xFFF5A623);
-  static const _accentEndColor = Color(0xFFFF8C42);
-  static const _cardRadius = 16.0;
-  static const _maxSelections = 10;
-  static const _textSecondary = Color(0xFF888888);
-  static const _borderColor = Color(0xFF333333);
 
-  // -- State --------------------------------------------------------------
-  late final TabController _tabController;
-  final Set<StyleModel> _selectedStyles = {};
-  String _currentCategory = StyleCategory.all;
+  static const _bg = Color(0xFFF6F2EE);
+  static const _cardBg = Colors.white;
+  static const _accent = Color(0xFFD4A056);
+  static const _dark = Color(0xFF2D2D2D);
+  static const _textSec = Color(0xFF999999);
+  static const _border = Color(0xFFE8E3DD);
+  static const _maxSel = 10;
+  static const _labels = ['A', 'B', 'C', 'D', 'E', 'F'];
+
+  static const _styleColors = <String, List<Color>>{
+    '艺术绘画': [Color(0xFFD4A574), Color(0xFFC09060)],
+    '动漫卡通': [Color(0xFFCB8EC0), Color(0xFFB876AC)],
+    '摄影风格': [Color(0xFF82B5C8), Color(0xFF6E9EAE)],
+    '场景主题': [Color(0xFF8DC49A), Color(0xFF78AC84)],
+    '多人合照': [Color(0xFFD49A9A), Color(0xFFBE8282)],
+  };
+
+  late final TabController _tabCtrl;
+  final Set<StyleModel> _selected = {};
+  late List<String> _photos; // 可变的照片列表
+  String _category = StyleCategory.all;
+  bool _isGroupPhoto = false; // 合照模式：一张照片里有多人
+  int _groupPeopleCount = 2;  // 合照模式下的人数
+
+  int get _personCount => _isGroupPhoto ? _groupPeopleCount : _photos.length;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(
-      length: StyleCategory.values.length,
-      vsync: this,
-    );
-    _tabController.addListener(_onTabChanged);
+    _photos = List.from(widget.imagePaths);
+    _tabCtrl = TabController(length: StyleCategory.values.length, vsync: this);
+    _tabCtrl.addListener(() {
+      if (!_tabCtrl.indexIsChanging) {
+        setState(() => _category = StyleCategory.values[_tabCtrl.index]);
+      }
+    });
   }
 
   @override
   void dispose() {
-    _tabController.removeListener(_onTabChanged);
-    _tabController.dispose();
+    _tabCtrl.dispose();
     super.dispose();
   }
 
-  void _onTabChanged() {
-    if (_tabController.indexIsChanging) return;
-    setState(() {
-      _currentCategory = StyleCategory.values[_tabController.index];
-    });
-  }
+  List<StyleModel> get _styles => StyleData.byCategory(_category);
 
-  List<StyleModel> get _filteredStyles =>
-      StyleData.byCategory(_currentCategory);
-
-  /// Returns the 1-based selection order index for the given style,
-  /// or -1 if not selected.
-  int _selectionIndex(StyleModel style) {
-    final list = _selectedStyles.toList();
+  int _selIdx(StyleModel s) {
+    final list = _selected.toList();
     for (var i = 0; i < list.length; i++) {
-      if (list[i].name == style.name) return i + 1;
+      if (list[i].name == s.name) return i + 1;
     }
     return -1;
   }
 
-  // -- Build --------------------------------------------------------------
+  // 添加人物照片
+  Future<void> _addPhoto() async {
+    if (_photos.length >= 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('最多添加 6 个人物'), behavior: SnackBarBehavior.floating),
+      );
+      return;
+    }
+
+    if (kIsWeb) {
+      // Web 模拟
+      setState(() => _photos.add('mock_person_${_photos.length + 1}.jpg'));
+      return;
+    }
+
+    final picker = ImagePicker();
+    final image = await picker.pickImage(source: ImageSource.camera, maxWidth: 2048, imageQuality: 90);
+    if (image != null) {
+      setState(() => _photos.add(image.path));
+    }
+  }
+
+  // 删除人物照片
+  void _removePhoto(int index) {
+    if (_photos.length <= 1) return; // 至少保留一张
+    setState(() {
+      _photos.removeAt(index);
+      // 清除不匹配人数的已选风格
+      _selected.removeWhere((s) => !s.matchesPeople(_photos.length));
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _bgColor,
-      body: SafeArea(
-        child: Column(
+    return ScaffoldMessenger(
+      child: Scaffold(
+        backgroundColor: _bg,
+        body: SafeArea(
+        child: Column(children: [
+          _topBar(),
+          Expanded(child: Row(children: [
+            SizedBox(width: MediaQuery.of(context).size.width * 0.28, child: _leftPanel()),
+            Container(width: 1, color: _border),
+            Expanded(child: _rightPanel()),
+          ])),
+          _bottomBar(),
+        ]),
+      ),
+      ),
+    );
+  }
+
+  // ─── 顶栏 ───
+  Widget _topBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      decoration: const BoxDecoration(color: _bg, border: Border(bottom: BorderSide(color: _border))),
+      child: Row(children: [
+        GestureDetector(
+          onTap: () => Navigator.pop(context),
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: _border)),
+            child: const Icon(Icons.arrow_back_ios_new, size: 16, color: _dark),
+          ),
+        ),
+        const SizedBox(width: 16),
+        const Text('选择风格', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: _dark, letterSpacing: 2)),
+        const Spacer(),
+        // 人数指示
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: _border)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.people_outline, size: 16, color: _textSec),
+            const SizedBox(width: 6),
+            Text('$_personCount 人', style: const TextStyle(fontSize: 13, color: _dark, fontWeight: FontWeight.w600)),
+          ]),
+        ),
+        const SizedBox(width: 12),
+        Text('已选 ${_selected.length}/$_maxSel', style: TextStyle(
+          fontSize: 13, color: _selected.isNotEmpty ? _accent : _textSec, fontWeight: FontWeight.w600,
+        )),
+      ]),
+    );
+  }
+
+  // ─── 左栏：人物照片管理 ───
+  Widget _leftPanel() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 模式切换
+          _modeSwitch(),
+          const SizedBox(height: 16),
+          // 内容
+          Expanded(child: _isGroupPhoto ? _groupPhotoPanel() : _individualPanel()),
+        ],
+      ),
+    );
+  }
+
+  Widget _modeSwitch() {
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F0EB),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(children: [
+        Expanded(child: _modeTab('分开拍照', Icons.person_outline, !_isGroupPhoto, () {
+          setState(() {
+            _isGroupPhoto = false;
+            _selected.clear();
+          });
+        })),
+        Expanded(child: _modeTab('合照模式', Icons.groups_outlined, _isGroupPhoto, () {
+          setState(() {
+            _isGroupPhoto = true;
+            _selected.clear();
+          });
+        })),
+      ]),
+    );
+  }
+
+  Widget _modeTab(String text, IconData icon, bool active, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: active ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: active ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4)] : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Top bar
-            _buildTopBar(),
-            // Main content
-            Expanded(
-              child: Row(
-                children: [
-                  // Left panel -- photo preview
-                  SizedBox(
-                    width: MediaQuery.of(context).size.width * 0.30,
-                    child: _buildLeftPanel(),
-                  ),
-                  // Divider
-                  Container(width: 1, color: Colors.white12),
-                  // Right panel -- style selection
-                  Expanded(child: _buildRightPanel()),
-                ],
-              ),
-            ),
-            // Bottom action bar
-            _buildBottomBar(),
+            Icon(icon, size: 15, color: active ? _accent : _textSec),
+            const SizedBox(width: 6),
+            Text(text, style: TextStyle(
+              fontSize: 12, fontWeight: active ? FontWeight.w700 : FontWeight.w400,
+              color: active ? _dark : _textSec,
+            )),
           ],
         ),
       ),
     );
   }
 
-  // -- Top bar ------------------------------------------------------------
-  Widget _buildTopBar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_ios, color: Colors.white70),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-          const SizedBox(width: 8),
-          const Text(
-            '选择风格',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // -- Left panel ---------------------------------------------------------
-  Widget _buildLeftPanel() {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          // Main photo preview
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(_cardRadius),
-              child: widget.imagePaths.isNotEmpty
-                  ? AdaptiveImage(
-                      path: widget.imagePaths.first,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                    )
-                  : _photoPlaceholder(),
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Photo count
-          Text(
-            '已选择 ${widget.imagePaths.length} 张照片',
-            style: const TextStyle(color: Colors.white70, fontSize: 15),
-          ),
-          const SizedBox(height: 12),
-          // Thumbnails row when multiple photos
-          if (widget.imagePaths.length > 1) _buildThumbnailRow(),
-        ],
-      ),
-    );
-  }
-
-  Widget _photoPlaceholder() {
-    return Container(
-      color: Colors.white10,
-      child: const Center(
-        child: Icon(Icons.person, size: 64, color: Colors.white24),
-      ),
-    );
-  }
-
-  Widget _buildThumbnailRow() {
-    return SizedBox(
-      height: 56,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: widget.imagePaths.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (_, index) {
-          return ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: AdaptiveImage(
-              path: widget.imagePaths[index],
-              width: 56,
-              height: 56,
-              fit: BoxFit.cover,
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  // -- Right panel --------------------------------------------------------
-  Widget _buildRightPanel() {
+  // ─── 分开拍照模式 ───
+  Widget _individualPanel() {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildCategoryTabs(),
-        Expanded(child: _buildStyleGrid()),
+        Text('每人拍一张，点 + 添加', style: TextStyle(fontSize: 11, color: _textSec)),
+        const SizedBox(height: 12),
+        Expanded(child: _photoGrid()),
       ],
     );
   }
 
-  Widget _buildCategoryTabs() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.white12)),
-      ),
-      child: TabBar(
-        controller: _tabController,
-        isScrollable: true,
-        indicatorColor: _accentColor,
-        indicatorWeight: 3,
-        labelColor: Colors.white,
-        unselectedLabelColor: Colors.white38,
-        labelStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-        unselectedLabelStyle: const TextStyle(fontSize: 15),
-        tabAlignment: TabAlignment.start,
-        tabs: StyleCategory.values
-            .map((c) => Tab(text: c))
-            .toList(growable: false),
-      ),
-    );
-  }
-
-  Widget _buildStyleGrid() {
-    final styles = _filteredStyles;
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 300),
-      child: GridView.builder(
-        key: ValueKey(_currentCategory),
-        padding: const EdgeInsets.all(24),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 4,
-          mainAxisSpacing: 16,
-          crossAxisSpacing: 16,
-          childAspectRatio: 1.15,
+  // ─── 合照模式 ───
+  Widget _groupPhotoPanel() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('一张照片里有多个人', style: TextStyle(fontSize: 11, color: _textSec)),
+        const SizedBox(height: 12),
+        // 合照预览
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              color: const Color(0xFFF5F0EB),
+              child: _photos.isNotEmpty
+                  ? AdaptiveImage(path: _photos.first, fit: BoxFit.cover, width: double.infinity, height: double.infinity)
+                  : const Center(child: Icon(Icons.groups, size: 48, color: Color(0xFFCCCCCC))),
+            ),
+          ),
         ),
-        itemCount: styles.length,
-        itemBuilder: (context, index) => _buildStyleCard(styles[index]),
+        const SizedBox(height: 16),
+        // 人数选择
+        const Text('照片里有几个人？', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _dark)),
+        const SizedBox(height: 10),
+        Row(
+          children: List.generate(5, (i) {
+            final count = i + 2; // 2-6人
+            final active = _groupPeopleCount == count;
+            return Expanded(
+              child: GestureDetector(
+                onTap: () => setState(() {
+                  _groupPeopleCount = count;
+                  _selected.removeWhere((s) => !s.matchesPeople(count));
+                }),
+                child: Container(
+                  margin: EdgeInsets.only(right: i < 4 ? 6 : 0),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    color: active ? _accent : const Color(0xFFF5F0EB),
+                    border: Border.all(color: active ? _accent : _border),
+                  ),
+                  child: Column(children: [
+                    Text('$count', style: TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.w700,
+                      color: active ? Colors.white : _dark,
+                    )),
+                    Text('人', style: TextStyle(
+                      fontSize: 10, color: active ? Colors.white70 : _textSec,
+                    )),
+                  ]),
+                ),
+              ),
+            );
+          }),
+        ),
+      ],
+    );
+  }
+
+  Widget _photoGrid() {
+    final total = _photos.length + 1; // +1 是添加按钮
+    return GridView.builder(
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
+        childAspectRatio: 0.8,
+      ),
+      itemCount: total > 7 ? _photos.length : total, // 最多6张+1添加按钮
+      itemBuilder: (_, i) {
+        if (i < _photos.length) {
+          return _personCard(i);
+        }
+        return _addPhotoBtn();
+      },
+    );
+  }
+
+  Widget _personCard(int index) {
+    final label = index < _labels.length ? '人物 ${_labels[index]}' : '人物 ${index + 1}';
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _border),
+        color: const Color(0xFFF5F0EB),
+      ),
+      child: Stack(children: [
+        // 照片
+        ClipRRect(
+          borderRadius: BorderRadius.circular(13),
+          child: AdaptiveImage(path: _photos[index], fit: BoxFit.cover, width: double.infinity, height: double.infinity),
+        ),
+        // 底部标签
+        Positioned(
+          left: 0, right: 0, bottom: 0,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            decoration: BoxDecoration(
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(13)),
+              color: Colors.white.withOpacity(0.9),
+            ),
+            child: Text(label, textAlign: TextAlign.center, style: const TextStyle(
+              fontSize: 11, fontWeight: FontWeight.w600, color: _dark,
+            )),
+          ),
+        ),
+        // 删除按钮（至少2张才显示）
+        if (_photos.length > 1)
+          Positioned(
+            top: 6, right: 6,
+            child: GestureDetector(
+              onTap: () => _removePhoto(index),
+              child: Container(
+                width: 22, height: 22,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.5)),
+                child: const Icon(Icons.close, size: 14, color: Colors.white),
+              ),
+            ),
+          ),
+      ]),
+    );
+  }
+
+  Widget _addPhotoBtn() {
+    return GestureDetector(
+      onTap: _addPhoto,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _accent, width: 1.5, strokeAlign: BorderSide.strokeAlignInside),
+          color: const Color(0xFFFFF9F0),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: _accent.withOpacity(0.12)),
+              child: const Icon(Icons.add_a_photo_outlined, color: _accent, size: 20),
+            ),
+            const SizedBox(height: 8),
+            const Text('添加人物', style: TextStyle(fontSize: 12, color: _accent, fontWeight: FontWeight.w600)),
+          ],
+        ),
       ),
     );
   }
 
-  // -- Style card ---------------------------------------------------------
-  Widget _buildStyleCard(StyleModel style) {
-    final selIndex = _selectionIndex(style);
-    final isSelected = selIndex > 0;
-    final gradientColors = StyleCategory.gradientColors(style.category);
+  // ─── 右栏 ───
+  Widget _rightPanel() {
+    return Column(children: [
+      Container(
+        color: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: TabBar(
+          controller: _tabCtrl,
+          isScrollable: true,
+          indicatorColor: _accent,
+          indicatorWeight: 2.5,
+          labelColor: _dark,
+          unselectedLabelColor: _textSec,
+          labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+          unselectedLabelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
+          tabAlignment: TabAlignment.start,
+          dividerColor: _border,
+          tabs: StyleCategory.values.map((c) => Tab(text: c)).toList(),
+        ),
+      ),
+      Expanded(child: _grid()),
+    ]);
+  }
 
-    // Check people count mismatch for group category
-    final bool hasMismatch = style.category == StyleCategory.groupPhoto &&
-        widget.imagePaths.length != style.peopleCount;
+  Widget _grid() {
+    final list = _styles;
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 250),
+      child: GridView.builder(
+        key: ValueKey(_category),
+        padding: const EdgeInsets.all(20),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 4, mainAxisSpacing: 14, crossAxisSpacing: 14, childAspectRatio: 1.2,
+        ),
+        itemCount: list.length,
+        itemBuilder: (_, i) => _styleCard(list[i]),
+      ),
+    );
+  }
+
+  // ─── 风格卡片 ───
+  Widget _styleCard(StyleModel style) {
+    final idx = _selIdx(style);
+    final isSel = idx > 0;
+    final colors = _styleColors[style.category] ?? [const Color(0xFFBBBBBB), const Color(0xFFAAAAAA)];
+    final needPeople = style.minPeople;
+    final match = style.matchesPeople(_personCount);
 
     return GestureDetector(
-      onTap: () => _onStyleTapped(style, hasMismatch),
+      onTap: () => _tapStyle(style),
       child: AnimatedScale(
-        scale: isSelected ? 0.95 : 1.0,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
+        scale: isSel ? 0.96 : 1.0,
+        duration: const Duration(milliseconds: 180),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
+          duration: const Duration(milliseconds: 180),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(_cardRadius),
+            borderRadius: BorderRadius.circular(16),
+            color: _cardBg,
             border: Border.all(
-              color: isSelected ? _accentColor : _borderColor,
-              width: isSelected ? 2.5 : 1.0,
+              color: isSel ? _accent : (!match ? const Color(0xFFE0D8D0) : _border),
+              width: isSel ? 2.5 : 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.3),
-                blurRadius: 8,
-                offset: const Offset(0, 4),
+                color: (isSel ? _accent : Colors.black).withOpacity(isSel ? 0.15 : 0.04),
+                blurRadius: isSel ? 12 : 6, offset: const Offset(0, 3),
               ),
             ],
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                gradientColors[0],
-                gradientColors[1],
-              ],
-            ),
           ),
-          child: Stack(
-            children: [
-              // Card content
+          child: Opacity(
+            opacity: match ? 1.0 : 0.45,
+            child: Stack(children: [
+              // 顶部色条
+              Positioned(
+                top: 0, left: 0, right: 0, height: 6,
+                child: Container(decoration: BoxDecoration(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+                  gradient: LinearGradient(colors: colors),
+                )),
+              ),
+              // 内容
               Padding(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.fromLTRB(14, 18, 14, 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    Text(
-                      style.name,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Text(style.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _dark)),
+                    const SizedBox(height: 6),
+                    Expanded(
+                      child: Text(style.description, style: const TextStyle(fontSize: 11, color: _textSec, height: 1.4),
+                        maxLines: 2, overflow: TextOverflow.ellipsis),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      style.description,
-                      style: const TextStyle(
-                        color: _textSecondary,
-                        fontSize: 12,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 8),
-                    _buildPeopleTag(style.peopleCount),
+                    // 人数标签
+                    _peopleTag(style),
                   ],
                 ),
               ),
-              // Selected order badge
-              if (isSelected)
-                Positioned(
-                  top: 10,
-                  right: 10,
-                  child: Container(
-                    width: 28,
-                    height: 28,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        colors: [_accentColor, _accentEndColor],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      '$selIndex',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
+              // 选中序号
+              if (isSel)
+                Positioned(top: 10, right: 10, child: Container(
+                  width: 26, height: 26,
+                  decoration: const BoxDecoration(shape: BoxShape.circle, color: _accent),
+                  alignment: Alignment.center,
+                  child: Text('$idx', style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                )),
+              // 人数不匹配提示
+              if (!match)
+                Positioned(top: 10, right: 10, child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: const Color(0xFFEE8855), borderRadius: BorderRadius.circular(6)),
+                  child: Text('需${needPeople}人+', style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w600)),
+                )),
+            ]),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildPeopleTag(int count) {
+  Widget _peopleTag(StyleModel style) {
+    final isGroup = style.isGroupStyle;
+    final label = style.minPeople <= 1
+        ? '单人'
+        : '${style.minPeople}人+';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: const Color(0xFF333333),
-        borderRadius: BorderRadius.circular(8),
+        color: isGroup ? const Color(0xFFFFF3E6) : const Color(0xFFF5F0EB),
+        borderRadius: BorderRadius.circular(6),
+        border: isGroup ? Border.all(color: const Color(0xFFFFD4A8), width: 0.5) : null,
       ),
-      child: Text(
-        count == 1 ? '单人' : '$count人',
-        style: const TextStyle(color: Colors.white70, fontSize: 11),
-      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(isGroup ? Icons.people_outline : Icons.person_outline, size: 12,
+          color: isGroup ? const Color(0xFFCC7733) : _textSec),
+        const SizedBox(width: 4),
+        Text(label, style: TextStyle(
+          fontSize: 10, color: isGroup ? const Color(0xFFCC7733) : _textSec, fontWeight: FontWeight.w500,
+        )),
+      ]),
     );
   }
 
-  void _onStyleTapped(StyleModel style, bool hasMismatch) {
-    if (hasMismatch) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '该风格需要 ${style.peopleCount} 张照片，'
-            '当前已选 ${widget.imagePaths.length} 张',
-          ),
-          backgroundColor: _accentColor,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+  void _tapStyle(StyleModel style) {
+    // 多人风格但人数不够
+    if (!style.matchesPeople(_personCount)) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('「${style.name}」至少需要 ${style.minPeople} 人，当前有 $_personCount 人'),
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(label: '添加人物', onPressed: _addPhoto),
+      ));
+      return;
     }
 
     setState(() {
-      // Check if already selected (by name equality)
-      final existing = _selectedStyles
-          .cast<StyleModel?>()
-          .firstWhere((s) => s!.name == style.name, orElse: () => null);
-
+      final existing = _selected.cast<StyleModel?>().firstWhere(
+        (s) => s!.name == style.name, orElse: () => null,
+      );
       if (existing != null) {
-        // Deselect
-        _selectedStyles.remove(existing);
-      } else if (_selectedStyles.length >= _maxSelections) {
-        // Show limit snackbar
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('最多选择10种风格'),
-            backgroundColor: _accentColor,
-            behavior: SnackBarBehavior.floating,
-            duration: Duration(seconds: 2),
-          ),
-        );
+        _selected.remove(existing);
+      } else if (_selected.length >= _maxSel) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('最多选择 10 种风格'), behavior: SnackBarBehavior.floating,
+        ));
       } else {
-        // Select
-        _selectedStyles.add(style);
+        _selected.add(style);
       }
     });
   }
 
-  // -- Bottom bar ---------------------------------------------------------
-  Widget _buildBottomBar() {
-    final count = _selectedStyles.length;
-    final hasSelection = count > 0;
+  // ─── 底栏 ───
+  Widget _bottomBar() {
+    final n = _selected.length;
+    final ok = n > 0;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-      decoration: const BoxDecoration(
-        color: _bgColor,
-        border: Border(top: BorderSide(color: Colors.white12)),
-      ),
-      child: Row(
-        children: [
-          // Selected styles count
-          Expanded(
-            child: Text(
-              '已选 $count/$_maxSelections 种风格',
-              style: TextStyle(
-                color: hasSelection ? Colors.white : _textSecondary,
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+      decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: _border))),
+      child: Row(children: [
+        if (ok) ...[const Icon(Icons.check_circle, color: _accent, size: 18), const SizedBox(width: 8)],
+        Text(ok
+          ? '已选 $n 种风格 · $_personCount 人${_isGroupPhoto ? "(合照)" : ""}'
+          : '请选择风格',
+          style: TextStyle(fontSize: 15, color: ok ? _dark : _textSec, fontWeight: FontWeight.w500)),
+        const Spacer(),
+        GestureDetector(
+          onTap: ok ? _gen : null,
+          child: AnimatedOpacity(
+            opacity: ok ? 1.0 : 0.35,
+            duration: const Duration(milliseconds: 200),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 13),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(30), color: _dark,
+                boxShadow: ok ? [BoxShadow(color: _dark.withOpacity(0.15), blurRadius: 12, offset: const Offset(0, 4))] : null,
               ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Text('生成 $n 张', style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600, letterSpacing: 2)),
+                const SizedBox(width: 6),
+                const Icon(Icons.arrow_forward, color: _accent, size: 18),
+              ]),
             ),
-          ),
-          // Generate button
-          _buildGenerateButton(hasSelection),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGenerateButton(bool enabled) {
-    final count = _selectedStyles.length;
-
-    return GestureDetector(
-      onTap: enabled ? _onGenerate : null,
-      child: AnimatedOpacity(
-        opacity: enabled ? 1.0 : 0.4,
-        duration: const Duration(milliseconds: 200),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
-            gradient: const LinearGradient(
-              colors: [_accentColor, _accentEndColor],
-            ),
-            boxShadow: enabled
-                ? [
-                    BoxShadow(
-                      color: _accentColor.withValues(alpha: 0.4),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '生成 $count 张照片 \u2192',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
           ),
         ),
-      ),
+      ]),
     );
   }
 
-  void _onGenerate() {
-    if (_selectedStyles.isEmpty) return;
-
-    // Navigate to ProcessingScreen.
-    Navigator.of(context).pushNamed(
-      '/processing',
-      arguments: {
-        'imagePaths': widget.imagePaths,
-        'styles': _selectedStyles.toList(),
-      },
-    );
+  void _gen() {
+    if (_selected.isEmpty) return;
+    Navigator.of(context).pushNamed('/processing', arguments: {
+      'imagePaths': _photos,
+      'styles': _selected.toList(),
+    });
   }
 }

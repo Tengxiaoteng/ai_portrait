@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../models/style_data.dart';
 import 'camera_screen.dart';
 import 'style_picker_screen.dart';
 
@@ -15,465 +16,173 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
-  late final AnimationController _breathController;
-  late final AnimationController _floatController;
-  late final AnimationController _shimmerController;
+  late final AnimationController _scrollCtrl;
+  late final AnimationController _pulseCtrl;
+
+  int get _styleCount => StyleData.allStyles.length;
+
+  // 照片墙 - 明亮温暖的色调
+  static const _col1 = [
+    _Img('油画', Color(0xFFD4A574), Color(0xFFB8896A)),
+    _Img('赛博朋克', Color(0xFF6B8EAD), Color(0xFF4A6F8A)),
+    _Img('古装汉服', Color(0xFFC27C6B), Color(0xFFA8625A)),
+    _Img('3D皮克斯', Color(0xFFA882C4), Color(0xFF8B6AA8)),
+    _Img('日系清新', Color(0xFF8BC4A8), Color(0xFF6BA88B)),
+    _Img('情侣写真', Color(0xFFD49A9A), Color(0xFFB87878)),
+  ];
+  static const _col2 = [
+    _Img('动漫', Color(0xFFCB8EC0), Color(0xFFAA72A0)),
+    _Img('水彩', Color(0xFF82B5C8), Color(0xFF6498AB)),
+    _Img('婚纱照', Color(0xFFE8D0A8), Color(0xFFCCB48E)),
+    _Img('暗黑哥特', Color(0xFF7A7A9A), Color(0xFF5E5E7E)),
+    _Img('商务照', Color(0xFF9AABB8), Color(0xFF7E8F9C)),
+    _Img('全家福', Color(0xFF8DC49A), Color(0xFF72A87E)),
+  ];
 
   @override
   void initState() {
     super.initState();
-    _breathController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 3),
-    )..repeat(reverse: true);
-    _floatController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 6),
-    )..repeat();
-    _shimmerController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat();
+    _scrollCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 45))..repeat();
+    _pulseCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat(reverse: true);
   }
 
   @override
   void dispose() {
-    _breathController.dispose();
-    _floatController.dispose();
-    _shimmerController.dispose();
+    _scrollCtrl.dispose();
+    _pulseCtrl.dispose();
     super.dispose();
   }
 
-  void _openCamera() {
-    // Web 环境跳过相机，直接进入风格选择页（用 mock 路径测试）
-    final Widget target = kIsWeb
+  void _go() {
+    final target = kIsWeb
         ? const StylePickerScreen(imagePaths: ['mock_photo.jpg'])
         : const CameraScreen();
-
-    Navigator.push(
-      context,
-      PageRouteBuilder(
-        pageBuilder: (_, __, ___) => target,
-        transitionDuration: const Duration(milliseconds: 500),
-        transitionsBuilder: (_, animation, __, child) {
-          return FadeTransition(
-            opacity: animation,
-            child: ScaleTransition(
-              scale: Tween<double>(begin: 0.95, end: 1.0).animate(
-                CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-              ),
-              child: child,
-            ),
-          );
-        },
-      ),
-    );
+    Navigator.push(context, PageRouteBuilder(
+      pageBuilder: (_, __, ___) => target,
+      transitionDuration: const Duration(milliseconds: 600),
+      transitionsBuilder: (_, a, __, child) => FadeTransition(opacity: a, child: child),
+    ));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        children: [
-          // 背景渐变
-          _buildBackground(),
-          // 浮动光效
-          ..._buildFloatingOrbs(),
-          // 主内容
-          _buildContent(context),
-        ],
-      ),
+      backgroundColor: const Color(0xFFF6F2EE),
+      body: Row(children: [
+        Expanded(flex: 50, child: _leftSide()),
+        Expanded(flex: 50, child: _rightSide()),
+      ]),
     );
   }
 
-  Widget _buildBackground() {
+  // ════════════════════════════════════════
+  //  左侧 - 温暖编辑式排版
+  // ════════════════════════════════════════
+  Widget _leftSide() {
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF0D0D0D),
-            Color(0xFF1A1A1A),
-            Color(0xFF111111),
-          ],
-          stops: [0.0, 0.5, 1.0],
-        ),
-      ),
-    );
-  }
-
-  List<Widget> _buildFloatingOrbs() {
-    return [
-      // 左上金色光球
-      AnimatedBuilder(
-        animation: _floatController,
-        builder: (_, __) {
-          final t = _floatController.value * 2 * math.pi;
-          return Positioned(
-            left: -80 + math.sin(t) * 20,
-            top: -60 + math.cos(t) * 15,
-            child: Container(
-              width: 300,
-              height: 300,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    const Color(0xFFF5A623).withOpacity(0.4),
-                    const Color(0xFFF5A623).withOpacity(0.0),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-      // 右下橘色光球
-      AnimatedBuilder(
-        animation: _floatController,
-        builder: (_, __) {
-          final t = _floatController.value * 2 * math.pi;
-          return Positioned(
-            right: -100 + math.cos(t) * 25,
-            bottom: -80 + math.sin(t) * 20,
-            child: Container(
-              width: 350,
-              height: 350,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    const Color(0xFFFF8C42).withOpacity(0.3),
-                    const Color(0xFFFF8C42).withOpacity(0.0),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-      // 中间暖黄光球
-      AnimatedBuilder(
-        animation: _breathController,
-        builder: (_, __) {
-          return Positioned(
-            right: 200,
-            top: 80,
-            child: Opacity(
-              opacity: 0.15 + _breathController.value * 0.1,
-              child: Container(
-                width: 200,
-                height: 200,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      const Color(0xFFFFD93D).withOpacity(0.5),
-                      const Color(0xFFFFD93D).withOpacity(0.0),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    ];
-  }
-
-  Widget _buildContent(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 32),
-        child: Row(
-          children: [
-            // 左侧：标题区
-            Expanded(
-              flex: 5,
-              child: _buildLeftSection(),
-            ),
-            const SizedBox(width: 48),
-            // 右侧：拍照按钮 + 风格预览
-            Expanded(
-              flex: 5,
-              child: _buildRightSection(size),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLeftSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // Logo 区域
-        AnimatedBuilder(
-          animation: _breathController,
-          builder: (_, __) {
-            return Transform.scale(
-              scale: 1.0 + _breathController.value * 0.02,
-              child: Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFF5A623), Color(0xFFFF8C42)],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFF5A623).withOpacity(0.3),
-                      blurRadius: 20,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: const Icon(Icons.auto_awesome, color: Colors.white, size: 32),
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 32),
-        // 主标题
-        const Text(
-          'AI 人像写真',
-          style: TextStyle(
-            fontSize: 48,
-            fontWeight: FontWeight.w800,
-            color: Colors.white,
-            letterSpacing: 2,
-            height: 1.1,
-          ),
-        ),
-        const SizedBox(height: 8),
-        ShaderMask(
-          shaderCallback: (bounds) => const LinearGradient(
-            colors: [Color(0xFFF5A623), Color(0xFFFFD93D)],
-          ).createShader(bounds),
-          child: const Text(
-            'PORTRAIT STUDIO',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
-              letterSpacing: 8,
-            ),
-          ),
-        ),
-        const SizedBox(height: 24),
-        Text(
-          '拍一张照片，AI 为你生成 32 种艺术风格\n油画 · 动漫 · 赛博朋克 · 古装汉服 · 情侣写真 ...',
-          style: TextStyle(
-            fontSize: 16,
-            color: Colors.white.withOpacity(0.5),
-            height: 1.6,
-          ),
-        ),
-        const SizedBox(height: 40),
-        // 数据指标
-        Row(
-          children: [
-            _buildStat('32', '种风格'),
-            const SizedBox(width: 40),
-            _buildStat('4K', '超高清'),
-            const SizedBox(width: 40),
-            _buildStat('60s', '极速生成'),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStat(String value, String label) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ShaderMask(
-          shaderCallback: (bounds) => const LinearGradient(
-            colors: [Color(0xFFF5A623), Color(0xFFFF8C42)],
-          ).createShader(bounds),
-          child: Text(
-            value,
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
-            ),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            color: Colors.white.withOpacity(0.4),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRightSection(Size size) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // 拍照大按钮（毛玻璃卡片）
-        _buildCameraButton(),
-        const SizedBox(height: 36),
-        // 风格预览横条
-        _buildStylePreviewRow(),
-      ],
-    );
-  }
-
-  Widget _buildCameraButton() {
-    return GestureDetector(
-      onTap: _openCamera,
-      child: AnimatedBuilder(
-        animation: _breathController,
-        builder: (_, child) {
-          return Transform.scale(
-            scale: 1.0 + _breathController.value * 0.01,
-            child: child,
-          );
-        },
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(28),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 48),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(28),
-                color: Colors.white.withOpacity(0.06),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.12),
-                  width: 1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFF5A623).withOpacity(0.08),
-                    blurRadius: 40,
-                    spreadRadius: 0,
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  // 拍照图标（带光环）
-                  Container(
-                    width: 88,
-                    height: 88,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFFF5A623), Color(0xFFFF8C42)],
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFFF5A623).withOpacity(0.4),
-                          blurRadius: 24,
-                          spreadRadius: 0,
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.camera_alt_rounded,
-                      color: Colors.white,
-                      size: 40,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    '点击拍照',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                      letterSpacing: 2,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '拍摄一张清晰的正面照',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.white.withOpacity(0.4),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStylePreviewRow() {
-    final styles = [
-      ('油画', const Color(0xFFF5A623), Icons.brush),
-      ('动漫', const Color(0xFFFF8C42), Icons.animation),
-      ('赛博', const Color(0xFFFFD93D), Icons.memory),
-      ('汉服', const Color(0xFFE6A04E), Icons.checkroom),
-      ('商务', const Color(0xFF999999), Icons.business_center),
-      ('水彩', const Color(0xFFFFBB5C), Icons.water_drop),
-    ];
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            color: Colors.white.withOpacity(0.04),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.08),
-              width: 1,
-            ),
-          ),
+      color: const Color(0xFFF6F2EE),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(left: 60, right: 40, top: 36, bottom: 36),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // 顶部品牌标签
               Row(
                 children: [
-                  Text(
-                    '可选风格',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white.withOpacity(0.5),
-                      letterSpacing: 1,
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2D2D2D),
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '共 32 种 >',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.white.withOpacity(0.3),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.auto_awesome, color: Color(0xFFD4A056), size: 14),
+                        SizedBox(width: 6),
+                        Text('AI STUDIO', style: TextStyle(
+                          fontSize: 11, color: Color(0xFFD4D4D4),
+                          letterSpacing: 3, fontWeight: FontWeight.w500,
+                        )),
+                      ],
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
+
+              const Spacer(flex: 3),
+
+              // 大标题
+              const Text('PORTRAIT', style: TextStyle(
+                fontSize: 58, fontWeight: FontWeight.w300,
+                color: Color(0xFF2D2D2D), letterSpacing: 10, height: 1.0,
+              )),
+              const SizedBox(height: 2),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: styles.map((s) {
-                  return _buildStyleChip(s.$1, s.$2, s.$3);
-                }).toList(),
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Text('STUDIO', style: TextStyle(
+                    fontSize: 58, fontWeight: FontWeight.w800,
+                    color: Color(0xFF2D2D2D), letterSpacing: 10, height: 1.0,
+                  )),
+                  Container(
+                    width: 10, height: 10,
+                    margin: const EdgeInsets.only(left: 8, bottom: 12),
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color(0xFFD4A056),
+                    ),
+                  ),
+                ],
               ),
+
+              const SizedBox(height: 24),
+
+              // 分割线+中文
+              Row(children: [
+                Container(width: 28, height: 2, color: const Color(0xFFD4A056)),
+                const SizedBox(width: 14),
+                const Text('人 像 写 真', style: TextStyle(
+                  fontSize: 13, color: Color(0xFF999999), letterSpacing: 8,
+                )),
+              ]),
+
+              const SizedBox(height: 28),
+
+              // 描述
+              Text(
+                '拍摄一张照片，AI 为你智能生成\n${_styleCount}+ 种不同艺术风格的高清写真',
+                style: const TextStyle(
+                  fontSize: 15, color: Color(0xFF999999), height: 1.8, letterSpacing: 0.5,
+                ),
+              ),
+
+              const SizedBox(height: 32),
+
+              // 指标
+              Row(children: [
+                _metric('${_styleCount}+', '风格'),
+                const SizedBox(width: 32),
+                _metric('4K', '分辨率'),
+                const SizedBox(width: 32),
+                _metric('60s', '生成'),
+              ]),
+
+              const Spacer(flex: 2),
+
+              // 拍照按钮
+              _shootBtn(),
+
+              const SizedBox(height: 16),
+
+              // 底部备注
+              const Text(
+                '支持单人 · 双人 · 全家福拍照',
+                style: TextStyle(fontSize: 12, color: Color(0xFFBBBBBB), letterSpacing: 1),
+              ),
+
+              const Spacer(flex: 1),
             ],
           ),
         ),
@@ -481,32 +190,178 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildStyleChip(String name, Color color, IconData icon) {
+  Widget _metric(String val, String label) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 50,
-          height: 50,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            color: color.withOpacity(0.15),
-            border: Border.all(
-              color: color.withOpacity(0.25),
-              width: 1,
-            ),
-          ),
-          child: Icon(icon, color: color.withOpacity(0.8), size: 22),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          name,
-          style: TextStyle(
-            fontSize: 11,
-            color: Colors.white.withOpacity(0.45),
-            fontWeight: FontWeight.w500,
-          ),
-        ),
+        Text(val, style: const TextStyle(
+          fontSize: 26, fontWeight: FontWeight.w700,
+          color: Color(0xFFD4A056), letterSpacing: 2,
+        )),
+        const SizedBox(height: 4),
+        Text(label, style: const TextStyle(
+          fontSize: 11, color: Color(0xFFAAAAAA), letterSpacing: 2,
+        )),
       ],
     );
   }
+
+  Widget _shootBtn() {
+    return GestureDetector(
+      onTap: _go,
+      child: AnimatedBuilder(
+        animation: _pulseCtrl,
+        builder: (_, child) => Transform.scale(
+          scale: 1.0 + _pulseCtrl.value * 0.006,
+          child: child,
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(40),
+            color: const Color(0xFF2D2D2D),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF2D2D2D).withOpacity(0.15),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.camera_alt_outlined, color: Colors.white, size: 20),
+              SizedBox(width: 12),
+              Text('开始拍照', style: TextStyle(
+                fontSize: 16, fontWeight: FontWeight.w600,
+                color: Colors.white, letterSpacing: 4,
+              )),
+              SizedBox(width: 8),
+              Icon(Icons.arrow_forward, color: Color(0xFFD4A056), size: 18),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════
+  //  右侧 - 亮色双列竖向滚动
+  // ════════════════════════════════════════
+  Widget _rightSide() {
+    return Stack(children: [
+      // 浅色底
+      Container(color: const Color(0xFFF0EBE5)),
+      // 双列照片
+      AnimatedBuilder(
+        animation: _scrollCtrl,
+        builder: (_, __) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(children: [
+            Expanded(child: _vCol(_col1, _scrollCtrl.value, false)),
+            const SizedBox(width: 10),
+            Expanded(child: _vCol(_col2, _scrollCtrl.value, true)),
+          ]),
+        ),
+      ),
+      // 上渐隐
+      Positioned(top: 0, left: 0, right: 0, height: 80,
+        child: Container(decoration: BoxDecoration(gradient: LinearGradient(
+          begin: Alignment.topCenter, end: Alignment.bottomCenter,
+          colors: [const Color(0xFFF0EBE5), const Color(0xFFF0EBE5).withOpacity(0)],
+        ))),
+      ),
+      // 下渐隐
+      Positioned(bottom: 0, left: 0, right: 0, height: 80,
+        child: Container(decoration: BoxDecoration(gradient: LinearGradient(
+          begin: Alignment.bottomCenter, end: Alignment.topCenter,
+          colors: [const Color(0xFFF0EBE5), const Color(0xFFF0EBE5).withOpacity(0)],
+        ))),
+      ),
+      // 左渐隐（衔接左区域）
+      Positioned(top: 0, bottom: 0, left: 0, width: 40,
+        child: Container(decoration: BoxDecoration(gradient: LinearGradient(
+          begin: Alignment.centerLeft, end: Alignment.centerRight,
+          colors: [const Color(0xFFF6F2EE), const Color(0xFFF6F2EE).withOpacity(0)],
+        ))),
+      ),
+    ]);
+  }
+
+  Widget _vCol(List<_Img> items, double t, bool rev) {
+    const ch = 220.0;
+    const gap = 10.0;
+    const unit = ch + gap;
+    final total = items.length * unit;
+    final all = [...items, ...items, ...items];
+    final dy = rev ? t * total : -t * total;
+
+    return ClipRect(
+      child: OverflowBox(
+        maxHeight: double.infinity,
+        alignment: Alignment.topCenter,
+        child: Transform.translate(
+          offset: Offset(0, -total + (dy % total)),
+          child: Column(
+            children: all.map((img) => Padding(
+              padding: const EdgeInsets.only(bottom: gap),
+              child: _card(img, ch),
+            )).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _card(_Img img, double h) {
+    return Container(
+      height: h,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [img.c1, img.c2],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: img.c2.withOpacity(0.2),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Stack(children: [
+        // 人像轮廓装饰
+        Positioned(
+          right: 16, top: 16,
+          child: Icon(Icons.person_outline_rounded, size: 36,
+            color: Colors.white.withOpacity(0.15)),
+        ),
+        // 标签
+        Positioned(
+          left: 14, bottom: 14,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.25),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(img.name, style: const TextStyle(
+              fontSize: 12, color: Colors.white,
+              fontWeight: FontWeight.w600, letterSpacing: 2,
+            )),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+class _Img {
+  final String name;
+  final Color c1, c2;
+  const _Img(this.name, this.c1, this.c2);
 }
